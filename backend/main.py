@@ -81,7 +81,7 @@ SCAN_BATCH = 100            # IDs por petición
 SCAN_MIN_INTERVAL = 0.15    # pausa mínima entre peticiones de escaneo (compartida por todos los canales)
 EMPTY_BATCHES_TO_STOP = 3
 FALLBACK_MAX_ID = 3000      # solo para sembrar temas cuando no hay caché
-SCAN_VERSION = 3            # súbelo para forzar un reescaneo completo de mensajes
+SCAN_VERSION = 4            # súbelo para forzar un reescaneo completo de mensajes
 
 # Rutas (por defecto junto a este archivo; el frontend está en la carpeta superior)
 BASE_DIR = Path(__file__).resolve().parent
@@ -409,12 +409,27 @@ def is_video(msg) -> bool:
         return False
     if (getattr(doc, "mime_type", "") or "").startswith("video/"):
         return True
+
+    # 1. Comprobar caption (el uploader incluye el nombre con extensión en el caption)
+    caption = (getattr(msg, "message", "") or "").strip().lower()
+    if caption:
+        first_line = caption.splitlines()[0]
+        if first_line.endswith(VIDEO_EXTENSIONS):
+            return True
+        if re.search(r"\.(mp4|mkv|avi|mov|webm|m4v|wmv|flv|ts)\.\d{3,4}$", first_line):
+            return True
+
+    # 2. Comprobar atributos del documento
     for attr in getattr(doc, "attributes", []) or []:
         if isinstance(attr, types.DocumentAttributeVideo):
             return True
         if isinstance(attr, types.DocumentAttributeFilename):
             fname = attr.file_name.lower()
-            if fname.endswith(VIDEO_EXTENSIONS) or re.search(r"\.(mp4|mkv|avi|mov|ts)\.\d{3}$", fname):
+            if fname.endswith(VIDEO_EXTENSIONS):
+                return True
+            if re.search(r"\.(mp4|mkv|avi|mov|webm|m4v|wmv|flv|ts)\.\d{3,4}$", fname):
+                return True
+            if re.search(r"\.\d{3,4}$", fname):
                 return True
     return False
 
