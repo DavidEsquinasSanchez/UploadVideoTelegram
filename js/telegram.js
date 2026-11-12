@@ -127,6 +127,35 @@ const TelegramAPI = {
         }
     },
 
+    // Cancela la descarga activa en curso
+    async cancelDownload() {
+        try {
+            const response = await apiFetch('/cancel_download', { method: 'POST' });
+            return response.ok ? await response.json() : { ok: false };
+        } catch (e) {
+            return { ok: false };
+        }
+    },
+
+    // Limpia las descargas completadas/canceladas de la cola
+    async clearDownloads() {
+        try {
+            const response = await apiFetch('/clear_downloads', { method: 'POST' });
+            return response.ok ? await response.json() : { ok: false };
+        } catch (e) {
+            return { ok: false };
+        }
+    },
+
+    // Formato de velocidad
+    formatSpeed(bytesPerSec) {
+        if (!bytesPerSec || bytesPerSec <= 0) return '';
+        if (bytesPerSec >= 1024 * 1024) {
+            return `${(bytesPerSec / (1024 * 1024)).toFixed(1)} MB/s`;
+        }
+        return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
+    },
+
     // "45 s" · "3 min 20 s" · "1 h 05 min"
     formatDuration(totalSeconds) {
         const s = Math.max(0, Math.round(totalSeconds));

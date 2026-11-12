@@ -173,9 +173,12 @@ download_state = {
     "status": "Inactivo",
     "percent": 0,
     "eta": None,
+    "speed": None,
     "current_file": "",
     "file_index": 0,
     "total_files": 0,
+    "dest_dir": "",
+    "queue": [],
     "error": None,
     "logs": []
 }
@@ -237,6 +240,19 @@ class SpeedTracker:
             return None
         speed = (last_b - first_b) / span
         return int(round(max(0, self.total - last_b) / speed))
+
+    def speed(self, now: Optional[float] = None) -> Optional[float]:
+        """Velocidad en bytes/segundo (ventana deslizante), o None."""
+        if not self.samples:
+            return None
+        now = time.monotonic() if now is None else now
+        pts = [(t, b) for t, b in self.samples if now - t <= self.window] or [self.samples[-1]]
+        first_t, first_b = pts[0]
+        span = now - first_t
+        last_b = self.samples[-1][1]
+        if span < self.min_span or last_b <= first_b:
+            return None
+        return (last_b - first_b) / span
 
 
 # ---------------------------------------------------------------------------
@@ -1301,6 +1317,7 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
     download_state["active"] = True
     download_state["error"] = None
     download_state["total_files"] = total_items
+    download_state["dest_dir"] = str(dest_dir)
 
     try:
         entity = await client.get_entity(chat_id)
@@ -1310,6 +1327,13 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
             target_name = item["final_name"]
             parts = item["parts"]
             num_parts = len(parts)
+
+            curr_queue_item = None
+            if item_idx - 1 < len(download_state.get("queue", [])):
+                curr_queue_item = download_state["queue"][item_idx - 1]
+                curr_queue_item["status"] = "Descargando"
+                curr_queue_item["current_part"] = 1
+                curr_queue_item["percent"] = 0
 
             part_suffix = f" ({num_parts} partes binarias)" if num_parts > 1 else ""
             add_download_log(f"[{item_idx}/{total_items}] Preparando descarga: '{target_name}'{part_suffix}", "info")
@@ -1333,21 +1357,36 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
                     last_logged = [-10]
                     part_start = time.monotonic()
 
+                    if curr_queue_item:
+                        curr_queue_item["current_part"] = p_idx
+
                     def on_progress(current, total):
                         pct = int(current * 100 / total) if total else 0
+                        spd = None
+                        eta = None
                         if download_tracker:
                             download_tracker.add(current, total)
                             eta = download_tracker.eta()
-                        else:
-                            eta = None
+                            spd = download_tracker.speed()
+
                         download_state["percent"] = pct
                         download_state["eta"] = eta
+                        download_state["speed"] = spd
+
                         part_info = f" (Parte {p_idx}/{num_parts})" if num_parts > 1 else ""
                         status_str = f"Descargando{part_info}: {pct}%"
+                        if spd:
+                            status_str += f" · {spd / 1e6:.1f} MB/s"
                         if eta is not None:
                             status_str += f" · quedan {eta}s"
                         download_state["status"] = status_str
                         download_state["current_file"] = f"{target_name}{part_info}"
+
+                        if curr_queue_item:
+                            curr_queue_item["percent"] = pct
+                            curr_queue_item["speed"] = spd
+                            curr_queue_item["eta"] = eta
+                            curr_queue_item["status"] = status_str
 
                         if pct - last_logged[0] >= 10 or pct == 100:
                             last_logged[0] = pct
@@ -1363,6 +1402,8 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
                 # Unión de partes si fue fraccionado
                 if num_parts > 1:
                     download_state["status"] = f"Uniendo {num_parts} partes binarias..."
+                    if curr_queue_item:
+                        curr_queue_item["status"] = f"Uniendo {num_parts} partes..."
                     add_download_log(f"Uniendo {num_parts} partes binarias en un único archivo...", "info")
                     merged_tmp = dest_dir / f".tmp_merged_{uuid.uuid4().hex[:8]}.tmp"
                     with open(merged_tmp, "wb") as f_out:
@@ -1393,6 +1434,13 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
                 assembly_file.replace(final_dest_path)
                 downloaded_temp_files.clear()
 
+                if curr_queue_item:
+                    curr_queue_item["name"] = final_name
+                    curr_queue_item["status"] = "Completado"
+                    curr_queue_item["percent"] = 100
+                    curr_queue_item["speed"] = None
+                    curr_queue_item["eta"] = None
+
                 add_download_log(f"[ÉXITO] Guardado archivo completo: '{final_name}'", "success")
 
             except Exception as e:
@@ -1402,21 +1450,37 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
                             p.unlink()
                         except Exception:
                             pass
+                if curr_queue_item:
+                    curr_queue_item["status"] = "Error"
+                    curr_queue_item["error"] = str(e)
                 raise
 
         total_elapsed = max(time.monotonic() - started_total, 0.001)
         add_download_log(f"[FIN] Todas las descargas finalizadas con éxito en {total_elapsed:.0f}s.", "success")
         download_state["status"] = "Completado"
         download_state["percent"] = 100
+        download_state["speed"] = None
+        download_state["eta"] = None
 
     except asyncio.CancelledError:
         add_download_log("Descarga cancelada.", "warning")
         download_state["status"] = "Cancelado"
+        download_state["speed"] = None
+        download_state["eta"] = None
+        for it in download_state.get("queue", []):
+            if it.get("status") not in ("Completado", "Error"):
+                it["status"] = "Cancelado"
     except Exception as e:
         err_msg = public_error(e)
         add_download_log(f"Error en la descarga: {err_msg}", "error")
         download_state["status"] = f"Error: {err_msg}"
         download_state["error"] = err_msg
+        download_state["speed"] = None
+        download_state["eta"] = None
+        for it in download_state.get("queue", []):
+            if it.get("status") not in ("Completado", "Error"):
+                it["status"] = "Error"
+                it["error"] = err_msg
     finally:
         download_state["active"] = False
         active_download_task = None
@@ -1501,13 +1565,56 @@ async def start_download(
     else:
         raise HTTPException(400, "Debes especificar un tema o un vídeo para descargar")
 
+    queue_items = []
+    for idx, item in enumerate(items_to_download, 1):
+        queue_items.append({
+            "id": f"dl_{idx}_{uuid.uuid4().hex[:6]}",
+            "name": item["final_name"],
+            "parts": len(item["parts"]),
+            "current_part": 0,
+            "status": "Pendiente",
+            "percent": 0,
+            "speed": None,
+            "eta": None,
+            "dest": str(folder_path),
+            "error": None
+        })
+
     download_state["logs"].clear()
     download_state["status"] = "Iniciando descarga..."
     download_state["percent"] = 0
+    download_state["speed"] = None
+    download_state["eta"] = None
     download_state["active"] = True
+    download_state["dest_dir"] = str(folder_path)
+    download_state["queue"] = queue_items
 
     active_download_task = asyncio.create_task(run_download_task(chat, items_to_download, folder_path))
     return {"ok": True, "total_items": len(items_to_download)}
+
+
+@app.post("/api/cancel_download")
+async def cancel_download():
+    global active_download_task
+    if active_download_task and not active_download_task.done():
+        active_download_task.cancel()
+        add_download_log("Cancelación de descarga solicitada por el usuario.", "warning")
+        return {"ok": True, "message": "Descarga cancelada"}
+    return {"ok": False, "message": "No hay descargas activas"}
+
+
+@app.post("/api/clear_downloads")
+async def clear_downloads():
+    if download_state.get("active"):
+        download_state["queue"] = [
+            it for it in download_state.get("queue", [])
+            if it.get("status", "").startswith("Descargando")
+            or it.get("status", "").startswith("Uniendo")
+            or it.get("status") == "Pendiente"
+        ]
+    else:
+        download_state["queue"] = []
+    return {"ok": True, "queue": download_state["queue"]}
 
 
 @app.get("/api/download_progress")
@@ -1517,9 +1624,12 @@ async def get_download_progress():
         "status": download_state["status"],
         "percent": download_state["percent"],
         "eta": download_state["eta"],
+        "speed": download_state.get("speed"),
         "current_file": download_state["current_file"],
         "file_index": download_state["file_index"],
         "total_files": download_state["total_files"],
+        "dest_dir": download_state.get("dest_dir", ""),
+        "queue": download_state.get("queue", []),
         "error": download_state["error"],
         "logs": download_state["logs"][-25:]
     }
