@@ -52,12 +52,12 @@ _load_env()
 
 # ---------------------------------------------------------------------------
 # CONFIGURACIÓN
-# Pon aquí tus valores o defínelos como variables de entorno
-# (TG_API_ID, TG_API_HASH, TG_BOT_TOKEN) o en un archivo .env
+# Se cargan automáticamente desde el archivo .env o variables de entorno
+# (TG_API_ID, TG_API_HASH, TG_BOT_TOKEN)
 # ---------------------------------------------------------------------------
 API_ID = int(os.getenv("TG_API_ID", "0"))
-API_HASH = os.getenv("TG_API_HASH", "TU_API_HASH_AQUI")
-BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "TU_BOT_TOKEN_AQUI")
+API_HASH = os.getenv("TG_API_HASH", "")
+BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "")
 SESSION_NAME = "nigroserver_session"
 
 TARGET_CHANNELS = [
@@ -233,10 +233,9 @@ async def lifespan(app: FastAPI):
     except Exception:
         log.warning("cryptg NO está instalado: el cifrado de Telethon será más lento")
 
-    if API_ID == 0 or "PON_AQUI" in API_HASH or "PON_AQUI" in BOT_TOKEN:
+    if not API_ID or not API_HASH or not BOT_TOKEN or "PON_AQUI" in API_HASH or "PON_AQUI" in BOT_TOKEN:
         raise RuntimeError(
-            "Faltan credenciales: edita API_ID / API_HASH / BOT_TOKEN en main.py "
-            "o define TG_API_ID, TG_API_HASH y TG_BOT_TOKEN.")
+            "Faltan credenciales: define TG_API_ID, TG_API_HASH y TG_BOT_TOKEN en el archivo .env.")
     if not (FRONTEND_DIR / "index.html").is_file():
         log.warning("No se encuentra %s: la interfaz no se podrá servir", FRONTEND_DIR / "index.html")
 
