@@ -95,6 +95,38 @@ const TelegramAPI = {
         return response.ok ? await response.json() : { cancelled: [] };
     },
 
+    // Abre el selector nativo de carpetas para elegir destino de descargas
+    async selectFolder() {
+        const response = await apiFetch('/select_folder', { method: 'POST' });
+        if (!response.ok) throw new Error(await readError(response));
+        const data = await response.json();
+        return data.folder || '';
+    },
+
+    // Inicia una descarga en el backend (de un tema completo o de un vídeo/parte específico)
+    async startDownload(chatId, topicId, videoName, destFolder) {
+        const formData = new FormData();
+        formData.append('chatId', chatId);
+        if (topicId) formData.append('topicId', topicId);
+        if (videoName) formData.append('videoName', videoName);
+        formData.append('destFolder', destFolder);
+
+        const response = await apiFetch('/download', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    // Consulta el progreso y estado actual de la descarga
+    async getDownloadProgress() {
+        try {
+            const response = await apiFetch('/download_progress');
+            if (!response.ok) return { active: false };
+            return await response.json();
+        } catch (e) {
+            return { active: false };
+        }
+    },
+
     // "45 s" · "3 min 20 s" · "1 h 05 min"
     formatDuration(totalSeconds) {
         const s = Math.max(0, Math.round(totalSeconds));
@@ -135,6 +167,7 @@ const TelegramAPI = {
             const formData = new FormData();
             formData.append('fileId', key);
             formData.append('transformedName', fileItem.transformedName);
+            formData.append('originalName', fileItem.originalName || '');
             formData.append('chatId', categoryId);
             formData.append('topicId', topicId || '');
 

@@ -787,15 +787,60 @@ th {
 }
 
 .video-item {
-    padding: 2px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    padding: 3px 0;
     font-size: 0.8rem;
     color: var(--text-muted);
+}
+
+.video-item-title {
+    flex: 1;
+    min-width: 0;
     word-break: break-all;
 }
 
-.video-item::before {
+.video-item-title::before {
     content: "🎬 ";
     font-size: 0.75rem;
+}
+
+.btn-download-topic,
+.btn-download-video {
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    font-size: 0.85rem;
+    padding: 1px 4px;
+    border-radius: 4px;
+    color: var(--text-muted);
+    transition: color 0.15s, background-color 0.15s, transform 0.1s;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.btn-download-topic:hover:not(:disabled),
+.btn-download-video:hover:not(:disabled) {
+    color: var(--primary);
+    background-color: rgba(255, 255, 255, 0.08);
+    transform: scale(1.15);
+}
+
+.btn-download-topic:disabled,
+.btn-download-video:disabled {
+    opacity: 0.35;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.direct-channel-videos {
+    list-style-type: none;
+    margin: 4px 0 8px 12px;
+    padding-left: 10px;
+    border-left: 1px solid var(--border);
+    display: block;
 }
 
 /* Estado de conexión */
