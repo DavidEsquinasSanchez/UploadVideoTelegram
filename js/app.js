@@ -455,10 +455,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                             btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
                             btnDlVideo.disabled = isDownloading;
                             btnDlVideo.textContent = '⬇️';
-                            btnDlVideo.addEventListener('click', (e) => {
+                            btnDlVideo.addEventListener('click', async (e) => {
                                 e.stopPropagation();
                                 if (isDownloading) return;
-                                addVideoToDownloadList(grupo.id, tema.id, v);
+                                await promptAndAddVideoToDownloadList(grupo.id, tema.id, v);
                             });
 
                             li.append(vTitle, btnDlVideo);
@@ -505,10 +505,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
                     btnDlVideo.disabled = isDownloading;
                     btnDlVideo.textContent = '⬇️';
-                    btnDlVideo.addEventListener('click', (e) => {
+                    btnDlVideo.addEventListener('click', async (e) => {
                         e.stopPropagation();
                         if (isDownloading) return;
-                        addVideoToDownloadList(grupo.id, null, v);
+                        await promptAndAddVideoToDownloadList(grupo.id, null, v);
                     });
 
                     li.append(vTitle, btnDlVideo);
@@ -820,9 +820,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         return filename.replace(/\.\d{3,4}$/, '');
     }
 
-    function addVideoToDownloadList(chatId, topicId, videoName, switchTabToDownloads = true) {
+    async function promptAndAddVideoToDownloadList(chatId, topicId, videoName, switchTabToDownloads = true) {
         if (!videoName || isDownloading) return;
         const baseName = getCleanVideoBaseName(videoName);
+
+        addLog(`Selecciona la carpeta donde guardar '${baseName}'...`, 'info');
+        let folder;
+        try {
+            folder = await window.TelegramAPI.selectFolder();
+        } catch (err) {
+            addLog(`Error al abrir selector de carpetas: ${err.message}`, 'error');
+            return;
+        }
+
+        if (!folder) {
+            addLog('Operación cancelada: no se seleccionó ninguna carpeta.', 'warning');
+            return;
+        }
 
         // Contar partes binarias
         const grupo = telegramData.find(g => String(g.id) === String(chatId));
@@ -843,8 +857,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         const existing = downloadsList.find(it => String(it.chatId) === String(chatId) && it.name.toLowerCase() === baseName.toLowerCase());
         if (existing) {
+            existing.dest = folder;
             existing.checked = true;
-            addLog(`El vídeo '${baseName}' ya está en la lista de descargas (marcado).`, 'info');
+            addLog(`Actualizada ubicación de '${baseName}' a '${folder}'.`, 'info');
         } else {
             downloadsList.push({
                 id: 'dl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
@@ -857,11 +872,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 percent: 0,
                 speed: null,
                 eta: null,
-                dest: '',
+                dest: folder,
                 error: null
             });
             const partInfo = partsCount > 1 ? ` (${partsCount} partes binarias)` : '';
-            addLog(`Añadido a la lista de descargas: '${baseName}'${partInfo}`, 'info');
+            addLog(`Añadido a la lista de descargas: '${baseName}'${partInfo} -> '${folder}'`, 'info');
         }
 
         if (switchTabToDownloads) {
@@ -873,7 +888,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         checkDownloadButtonState();
     }
 
-    function addTopicVideosToDownloadList(chatId, topicId, topicName) {
+    async function promptAndAddTopicVideosToDownloadList(chatId, topicId, topicName) {
         if (isDownloading) return;
         const grupo = telegramData.find(g => String(g.id) === String(chatId));
         if (!grupo) return;
@@ -883,16 +898,52 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        addLog(`Selecciona la carpeta donde guardar los vídeos del tema '${topicName}'...`, 'info');
+        let folder;
+        try {
+            folder = await window.TelegramAPI.selectFolder();
+        } catch (err) {
+            addLog(`Error al abrir selector de carpetas: ${err.message}`, 'error');
+            return;
+        }
+
+        if (!folder) {
+            addLog('Operación cancelada: no se seleccionó ninguna carpeta.', 'warning');
+            return;
+        }
+
         const uniqueBases = new Set();
         tema.videos.forEach(v => uniqueBases.add(getCleanVideoBaseName(v)));
 
         let count = 0;
         uniqueBases.forEach(baseName => {
-            addVideoToDownloadList(chatId, topicId, baseName, false);
+            const matching = (tema.videos || []).filter(vn => getCleanVideoBaseName(vn).toLowerCase() === baseName.toLowerCase());
+            const partsCount = matching.length > 1 ? matching.length : 1;
+
+            const existing = downloadsList.find(it => String(it.chatId) === String(chatId) && it.name.toLowerCase() === baseName.toLowerCase());
+            if (existing) {
+                existing.dest = folder;
+                existing.checked = true;
+            } else {
+                downloadsList.push({
+                    id: 'dl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                    chatId: chatId,
+                    topicId: topicId,
+                    name: baseName,
+                    parts: partsCount,
+                    checked: true,
+                    status: 'Pendiente',
+                    percent: 0,
+                    speed: null,
+                    eta: null,
+                    dest: folder,
+                    error: null
+                });
+            }
             count++;
         });
 
-        addLog(`Añadidos ${count} vídeos del tema '${topicName}' a la lista de descargas.`, 'success');
+        addLog(`Añadidos ${count} vídeos del tema '${topicName}' a la lista de descargas -> '${folder}'.`, 'success');
         switchTab('downloads');
         renderDownloadsTable();
         updateBadges();
@@ -1071,22 +1122,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         const checkedItems = downloadsList.filter(it => it.checked);
         if (checkedItems.length === 0) return;
 
-        addLog(`Selecciona la carpeta donde guardar los ${checkedItems.length} vídeo(s)...`, 'info');
-        let folder;
-        try {
-            folder = await window.TelegramAPI.selectFolder();
-        } catch (err) {
-            addLog(`Error al abrir selector de carpetas: ${err.message}`, 'error');
-            return;
-        }
+        // Si algún elemento seleccionado no tiene carpeta de destino asignada (ej. restaurado sin dest), pedirla
+        const missingDest = checkedItems.filter(it => !it.dest);
+        if (missingDest.length > 0) {
+            addLog(`Falta indicar ubicación en ${missingDest.length} vídeo(s). Selecciona la carpeta donde guardarlos...`, 'info');
+            let folder;
+            try {
+                folder = await window.TelegramAPI.selectFolder();
+            } catch (err) {
+                addLog(`Error al abrir selector de carpetas: ${err.message}`, 'error');
+                return;
+            }
 
-        if (!folder) {
-            addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
-            return;
+            if (!folder) {
+                addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
+                return;
+            }
+
+            missingDest.forEach(it => {
+                it.dest = folder;
+            });
         }
 
         checkedItems.forEach(it => {
-            it.dest = folder;
             it.status = 'En cola ⏳';
             it.percent = 0;
             it.speed = null;
@@ -1100,14 +1158,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const itemsPayload = checkedItems.map(it => ({
             chatId: it.chatId,
             topicId: it.topicId,
-            videoName: it.name
+            videoName: it.name,
+            dest: it.dest
         }));
 
-        addLog(`Iniciando descarga de ${checkedItems.length} vídeo(s) en '${folder}'...`, 'info');
+        addLog(`Iniciando descarga de ${checkedItems.length} vídeo(s) hacia sus destinos asignados...`, 'info');
 
         try {
             await window.TelegramAPI.startDownload({
-                destFolder: folder,
+                destFolder: checkedItems[0].dest || '',
                 itemsJson: JSON.stringify(itemsPayload)
             });
             startDownloadPolling();
@@ -1793,12 +1852,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---------------------------------------------------------------- Descarga de tema (Modal)
     if (btnConfirmDownloadTopic) {
-        btnConfirmDownloadTopic.addEventListener('click', () => {
+        btnConfirmDownloadTopic.addEventListener('click', async () => {
             if (downloadTopicModal) downloadTopicModal.classList.add('hidden');
             if (pendingTopicDownload) {
                 const { categoryId, topicId, topicName } = pendingTopicDownload;
                 pendingTopicDownload = null;
-                addTopicVideosToDownloadList(categoryId, topicId, topicName);
+                await promptAndAddTopicVideosToDownloadList(categoryId, topicId, topicName);
             }
         });
     }
