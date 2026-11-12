@@ -86,7 +86,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmDownloadTopic = document.getElementById('btnConfirmDownloadTopic');
     const btnCancelDownloadTopic = document.getElementById('btnCancelDownloadTopic');
 
+    const uploadViewControls = document.getElementById('uploadViewControls');
+    const downloadViewControls = document.getElementById('downloadViewControls');
     const btnCancelarDescarga = document.getElementById('btnCancelarDescarga');
+    const btnReintentarDescarga = document.getElementById('btnReintentarDescarga');
+    const btnDescargarContenido = document.getElementById('btnDescargarContenido');
     const tabUploads = document.getElementById('tabUploads');
     const tabDownloads = document.getElementById('tabDownloads');
     const uploadsWrapper = document.getElementById('uploadsWrapper');
@@ -95,6 +99,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const badgeDownloads = document.getElementById('badgeDownloads');
     const downloadsTable = document.getElementById('downloadsTable');
     const downloadsTableBody = document.getElementById('downloadsTableBody');
+    const checkAllDownloads = document.getElementById('checkAllDownloads');
     const btnClearCompletedDownloads = document.getElementById('btnClearCompletedDownloads');
 
     const DOWNLOAD_LOCKED_MSG = "Descarga en curso. Al finalizar se volverá a habilitar";
@@ -246,6 +251,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         initTableResizers();
         renderDownloadsTable();
         updateBadges();
+        syncHeaderCheckbox();
+        checkDownloadButtonState();
         checkHealth();
         setInterval(checkHealth, HEALTH_INTERVAL_MS);
 
@@ -451,7 +458,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             btnDlVideo.addEventListener('click', (e) => {
                                 e.stopPropagation();
                                 if (isDownloading) return;
-                                triggerVideoDownload(grupo.id, tema.id, v);
+                                addVideoToDownloadList(grupo.id, tema.id, v);
                             });
 
                             li.append(vTitle, btnDlVideo);
@@ -501,7 +508,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btnDlVideo.addEventListener('click', (e) => {
                         e.stopPropagation();
                         if (isDownloading) return;
-                        triggerVideoDownload(grupo.id, null, v);
+                        addVideoToDownloadList(grupo.id, null, v);
                     });
 
                     li.append(vTitle, btnDlVideo);
@@ -695,54 +702,27 @@ document.addEventListener('DOMContentLoaded', async () => {
         isDownloading = locked;
 
         if (btnCancelarDescarga) {
+            btnCancelarDescarga.textContent = 'Cancelar subida';
+        }
+
+        checkDownloadButtonState();
+        checkUploadButtonState();
+
+        document.querySelectorAll('.btn-download-topic, .btn-download-video').forEach(btn => {
+            btn.disabled = locked;
             if (locked) {
-                btnCancelarDescarga.classList.remove('hidden');
-                btnCancelarDescarga.disabled = false;
-                btnCancelarDescarga.textContent = 'Cancelar descarga';
-            } else {
-                btnCancelarDescarga.classList.add('hidden');
-            }
-        }
-
-        const mainButtons = [
-            btnSeleccionar,
-            btnSubir,
-            btnReintentar,
-            btnCancelar,
-            btnRefresh,
-            btnDeleteAll,
-            btnDeleteOk,
-            ...document.querySelectorAll('.btn-delete-row'),
-            ...document.querySelectorAll('.btn-edit-transformed'),
-            ...document.querySelectorAll('.btn-download-topic'),
-            ...document.querySelectorAll('.btn-download-video')
-        ].filter(Boolean);
-
-        if (locked) {
-            mainButtons.forEach(btn => {
-                if (!btn.dataset.prevTitle) {
-                    btn.dataset.prevTitle = btn.getAttribute('title') || '';
-                }
-                btn.disabled = true;
                 btn.setAttribute('title', DOWNLOAD_LOCKED_MSG);
-            });
-            categoriaSelect.disabled = true;
-            subcategoriaSelect.disabled = true;
-        } else {
-            mainButtons.forEach(btn => {
-                btn.disabled = false;
-                if (btn.dataset.prevTitle !== undefined) {
-                    btn.setAttribute('title', btn.dataset.prevTitle);
-                    delete btn.dataset.prevTitle;
-                }
-            });
-            categoriaSelect.disabled = false;
-            subcategoriaSelect.disabled = false;
+            } else {
+                btn.setAttribute('title', btn.classList.contains('btn-download-topic') ? 'Descargar todos los archivos' : 'Descargar video');
+            }
+        });
+
+        if (!locked) {
             validateForm();
-            checkUploadButtonState();
             renderTable();
-            renderSidebar();
         }
+        renderSidebar();
+        renderDownloadsTable();
         updateBadges();
     }
 
@@ -754,11 +734,18 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabDownloads) tabDownloads.classList.remove('active');
             if (uploadsWrapper) uploadsWrapper.classList.remove('hidden');
             if (downloadsWrapper) downloadsWrapper.classList.add('hidden');
+            if (uploadViewControls) uploadViewControls.classList.remove('hidden');
+            if (downloadViewControls) downloadViewControls.classList.add('hidden');
+            validateForm();
+            checkUploadButtonState();
         } else {
             if (tabDownloads) tabDownloads.classList.add('active');
             if (tabUploads) tabUploads.classList.remove('active');
             if (downloadsWrapper) downloadsWrapper.classList.remove('hidden');
             if (uploadsWrapper) uploadsWrapper.classList.add('hidden');
+            if (downloadViewControls) downloadViewControls.classList.remove('hidden');
+            if (uploadViewControls) uploadViewControls.classList.add('hidden');
+            checkDownloadButtonState();
         }
     }
 
@@ -777,17 +764,153 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    function syncHeaderCheckbox() {
+        if (!checkAllDownloads) return;
+        if (downloadsList.length === 0) {
+            checkAllDownloads.checked = false;
+            checkAllDownloads.indeterminate = false;
+            return;
+        }
+        const allChecked = downloadsList.every(i => i.checked);
+        const noneChecked = downloadsList.every(i => !i.checked);
+        checkAllDownloads.checked = allChecked;
+        checkAllDownloads.indeterminate = !allChecked && !noneChecked;
+    }
+
+    if (checkAllDownloads) {
+        checkAllDownloads.addEventListener('change', () => {
+            if (isDownloading) return;
+            const checked = checkAllDownloads.checked;
+            downloadsList.forEach(i => { i.checked = checked; });
+            renderDownloadsTable();
+            checkDownloadButtonState();
+        });
+    }
+
+    function checkDownloadButtonState() {
+        if (!btnDescargarContenido || !btnCancelarDescarga || !btnReintentarDescarga) return;
+
+        if (isDownloading) {
+            btnCancelarDescarga.disabled = false;
+            btnCancelarDescarga.title = 'Cancelar descarga en curso';
+
+            btnReintentarDescarga.disabled = true;
+            btnReintentarDescarga.title = DOWNLOAD_LOCKED_MSG;
+
+            btnDescargarContenido.disabled = true;
+            btnDescargarContenido.title = DOWNLOAD_LOCKED_MSG;
+        } else {
+            btnCancelarDescarga.disabled = true;
+            btnCancelarDescarga.title = 'No hay ninguna descarga en curso';
+
+            // Reintentar: solo si al finalizar alguna descarga tuvo error
+            const hasError = downloadsList.some(it => it.status === 'Error');
+            btnReintentarDescarga.disabled = !hasError;
+            btnReintentarDescarga.title = hasError ? 'Reintentar descargas fallidas' : '';
+
+            // Descargar contenido: habilitado si hay al menos un elemento marcado
+            const hasChecked = downloadsList.some(it => it.checked);
+            btnDescargarContenido.disabled = !hasChecked;
+            btnDescargarContenido.title = hasChecked ? '' : 'Selecciona al menos un vídeo de la tabla para descargar';
+        }
+    }
+
+    function getCleanVideoBaseName(filename) {
+        if (!filename) return '';
+        return filename.replace(/\.\d{3,4}$/, '');
+    }
+
+    function addVideoToDownloadList(chatId, topicId, videoName, switchTabToDownloads = true) {
+        if (!videoName || isDownloading) return;
+        const baseName = getCleanVideoBaseName(videoName);
+
+        // Contar partes binarias
+        const grupo = telegramData.find(g => String(g.id) === String(chatId));
+        let partsCount = 1;
+        if (grupo) {
+            let vList = [];
+            if (topicId) {
+                const tema = (grupo.temas || []).find(t => String(t.id) === String(topicId));
+                if (tema) vList = tema.videos || [];
+            } else {
+                vList = grupo.videos || [];
+            }
+            const matching = vList.filter(vn => getCleanVideoBaseName(vn).toLowerCase() === baseName.toLowerCase());
+            if (matching.length > 1) {
+                partsCount = matching.length;
+            }
+        }
+
+        const existing = downloadsList.find(it => String(it.chatId) === String(chatId) && it.name.toLowerCase() === baseName.toLowerCase());
+        if (existing) {
+            existing.checked = true;
+            addLog(`El vídeo '${baseName}' ya está en la lista de descargas (marcado).`, 'info');
+        } else {
+            downloadsList.push({
+                id: 'dl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6),
+                chatId: chatId,
+                topicId: topicId,
+                name: baseName,
+                parts: partsCount,
+                checked: true,
+                status: 'Pendiente',
+                percent: 0,
+                speed: null,
+                eta: null,
+                dest: '',
+                error: null
+            });
+            const partInfo = partsCount > 1 ? ` (${partsCount} partes binarias)` : '';
+            addLog(`Añadido a la lista de descargas: '${baseName}'${partInfo}`, 'info');
+        }
+
+        if (switchTabToDownloads) {
+            switchTab('downloads');
+        }
+        renderDownloadsTable();
+        updateBadges();
+        syncHeaderCheckbox();
+        checkDownloadButtonState();
+    }
+
+    function addTopicVideosToDownloadList(chatId, topicId, topicName) {
+        if (isDownloading) return;
+        const grupo = telegramData.find(g => String(g.id) === String(chatId));
+        if (!grupo) return;
+        const tema = (grupo.temas || []).find(t => String(t.id) === String(topicId));
+        if (!tema || !tema.videos || tema.videos.length === 0) {
+            addLog(`El tema '${topicName}' no contiene vídeos para descargar.`, 'warning');
+            return;
+        }
+
+        const uniqueBases = new Set();
+        tema.videos.forEach(v => uniqueBases.add(getCleanVideoBaseName(v)));
+
+        let count = 0;
+        uniqueBases.forEach(baseName => {
+            addVideoToDownloadList(chatId, topicId, baseName, false);
+            count++;
+        });
+
+        addLog(`Añadidos ${count} vídeos del tema '${topicName}' a la lista de descargas.`, 'success');
+        switchTab('downloads');
+        renderDownloadsTable();
+        updateBadges();
+        syncHeaderCheckbox();
+        checkDownloadButtonState();
+    }
+
     function renderDownloadsTable(prog = null) {
         if (!downloadsTableBody) return;
 
         if (!downloadsList || downloadsList.length === 0) {
             downloadsTableBody.innerHTML = `
                 <tr class="empty-downloads-row">
-                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 36px 16px;">
+                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 36px 16px;">
                         <div style="font-size: 1.6rem; margin-bottom: 8px;">⬇️</div>
-                        <div style="font-weight: 600; font-size: 0.95rem;">No hay descargas activas ni en cola</div>
+                        <div style="font-weight: 600; font-size: 0.95rem;">No hay descargas en la lista</div>
                         <div style="font-size: 0.85rem; margin-top: 6px; opacity: 0.8;">
-                            Haz clic en el icono ⬇️ junto a cualquier tema o vídeo en el panel lateral para iniciar una descarga.
+                            Haz clic en el icono ⬇️ junto a cualquier tema o vídeo en el panel lateral para añadirlo a esta lista.
                         </div>
                     </td>
                 </tr>
@@ -799,6 +922,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         downloadsList.forEach((item, index) => {
             const tr = document.createElement('tr');
+
+            // 0. Columna Checkbox
+            const tdCheck = document.createElement('td');
+            tdCheck.className = 'download-check-cell';
+            const chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.className = 'download-item-check';
+            chk.dataset.id = item.id;
+            chk.checked = Boolean(item.checked);
+            chk.disabled = isDownloading;
+            chk.title = chk.checked ? 'Desmarcar este vídeo' : 'Marcar este vídeo para descargar';
+            chk.addEventListener('change', (e) => {
+                e.stopPropagation();
+                item.checked = chk.checked;
+                syncHeaderCheckbox();
+                checkDownloadButtonState();
+            });
+            tdCheck.appendChild(chk);
 
             // 1. Vídeo / Archivo
             const tdName = document.createElement('td');
@@ -822,7 +963,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const destSpan = document.createElement('span');
             destSpan.className = 'download-dest-text';
             destSpan.textContent = item.dest || '-';
-            destSpan.title = item.dest || '';
+            destSpan.title = item.dest || 'Se asignará al descargar';
             tdDest.appendChild(destSpan);
 
             // 3. Estado / Progreso
@@ -887,6 +1028,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             } else if (status === 'Completado') {
                 tdProgress.innerHTML = `<span class="status-ok">Completado ✅</span>`;
             } else if (status === 'Pendiente') {
+                tdProgress.innerHTML = `<span class="status-pendiente">Pendiente</span>`;
+            } else if (status === 'En cola ⏳') {
                 tdProgress.innerHTML = `<span class="status-pendiente">En cola ⏳</span>`;
             } else if (status === 'Cancelado') {
                 tdProgress.innerHTML = `<span class="status-cancelado">Cancelado ⚠️</span>`;
@@ -899,31 +1042,118 @@ document.addEventListener('DOMContentLoaded', async () => {
             // 4. Acción
             const tdAction = document.createElement('td');
             tdAction.className = 'td-delete';
-            const isItemActive = status.startsWith('Descargando') || status.startsWith('Uniendo') || status === 'Pendiente';
+            const isItemActive = status.startsWith('Descargando') || status.startsWith('Uniendo');
 
             if (!isItemActive) {
                 const btnDel = document.createElement('button');
                 btnDel.type = 'button';
                 btnDel.className = 'btn-delete-row';
                 btnDel.textContent = 'Eliminar';
-                btnDel.title = 'Eliminar de la lista';
+                btnDel.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Eliminar de la lista';
+                btnDel.disabled = isDownloading;
                 btnDel.addEventListener('click', () => {
+                    if (isDownloading) return;
                     downloadsList.splice(index, 1);
                     renderDownloadsTable();
                     updateBadges();
+                    syncHeaderCheckbox();
+                    checkDownloadButtonState();
                 });
                 tdAction.appendChild(btnDel);
             }
 
-            tr.append(tdName, tdDest, tdProgress, tdAction);
+            tr.append(tdCheck, tdName, tdDest, tdProgress, tdAction);
             downloadsTableBody.appendChild(tr);
+        });
+    }
+
+    async function executeDownloadProcess() {
+        const checkedItems = downloadsList.filter(it => it.checked);
+        if (checkedItems.length === 0) return;
+
+        addLog(`Selecciona la carpeta donde guardar los ${checkedItems.length} vídeo(s)...`, 'info');
+        let folder;
+        try {
+            folder = await window.TelegramAPI.selectFolder();
+        } catch (err) {
+            addLog(`Error al abrir selector de carpetas: ${err.message}`, 'error');
+            return;
+        }
+
+        if (!folder) {
+            addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
+            return;
+        }
+
+        checkedItems.forEach(it => {
+            it.dest = folder;
+            it.status = 'En cola ⏳';
+            it.percent = 0;
+            it.speed = null;
+            it.eta = null;
+            it.error = null;
+        });
+
+        setDownloadLock(true);
+        renderDownloadsTable();
+
+        const itemsPayload = checkedItems.map(it => ({
+            chatId: it.chatId,
+            topicId: it.topicId,
+            videoName: it.name
+        }));
+
+        addLog(`Iniciando descarga de ${checkedItems.length} vídeo(s) en '${folder}'...`, 'info');
+
+        try {
+            await window.TelegramAPI.startDownload({
+                destFolder: folder,
+                itemsJson: JSON.stringify(itemsPayload)
+            });
+            startDownloadPolling();
+        } catch (err) {
+            setDownloadLock(false);
+            checkedItems.forEach(it => {
+                it.status = 'Error';
+                it.error = err.message;
+            });
+            renderDownloadsTable();
+            checkDownloadButtonState();
+            addLog(`Error al iniciar descarga: ${err.message}`, 'error');
+        }
+    }
+
+    if (btnDescargarContenido) {
+        btnDescargarContenido.addEventListener('click', () => {
+            if (isDownloading) return;
+            executeDownloadProcess();
+        });
+    }
+
+    if (btnReintentarDescarga) {
+        btnReintentarDescarga.addEventListener('click', () => {
+            if (isDownloading) return;
+            downloadsList.forEach(it => {
+                if (it.status === 'Error') {
+                    it.checked = true;
+                    it.status = 'Pendiente';
+                    it.error = null;
+                } else {
+                    it.checked = false;
+                }
+            });
+            syncHeaderCheckbox();
+            renderDownloadsTable();
+            checkDownloadButtonState();
+            executeDownloadProcess();
         });
     }
 
     if (btnCancelarDescarga) {
         btnCancelarDescarga.addEventListener('click', async () => {
+            if (!isDownloading) return;
             btnCancelarDescarga.disabled = true;
-            btnCancelarDescarga.textContent = 'Cancelando descarga...';
+            btnCancelarDescarga.textContent = 'Cancelando subida...';
             addLog('Cancelando descarga en curso...', 'warning');
             try {
                 await window.TelegramAPI.cancelDownload();
@@ -935,59 +1165,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (btnClearCompletedDownloads) {
         btnClearCompletedDownloads.addEventListener('click', async () => {
+            if (isDownloading) return;
             try {
                 await window.TelegramAPI.clearDownloads();
                 downloadsList = downloadsList.filter(item => {
                     const s = item.status || '';
-                    return s.startsWith('Descargando') || s.startsWith('Uniendo') || s === 'Pendiente';
+                    return s.startsWith('Descargando') || s.startsWith('Uniendo') || s === 'En cola ⏳';
                 });
                 renderDownloadsTable();
                 updateBadges();
+                syncHeaderCheckbox();
+                checkDownloadButtonState();
                 addLog('Descargas completadas eliminadas de la lista.', 'info');
             } catch (e) {
                 addLog(`Error al limpiar descargas: ${e.message}`, 'error');
             }
         });
-    }
-
-    async function triggerVideoDownload(chatId, topicId, videoName) {
-        if (isDownloading) return;
-        addLog(`Selecciona la carpeta donde guardar '${videoName}'...`, 'info');
-        try {
-            const folder = await window.TelegramAPI.selectFolder();
-            if (!folder) {
-                addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
-                return;
-            }
-            switchTab('downloads');
-            setDownloadLock(true);
-            addLog(`Iniciando descarga de '${videoName}' en '${folder}'...`, 'info');
-            await window.TelegramAPI.startDownload(chatId, topicId, videoName, folder);
-            startDownloadPolling();
-        } catch (err) {
-            setDownloadLock(false);
-            addLog(`Error al iniciar descarga: ${err.message}`, 'error');
-        }
-    }
-
-    async function triggerTopicDownload(chatId, topicId, topicName) {
-        if (isDownloading) return;
-        addLog(`Selecciona la carpeta donde guardar todos los vídeos de '${topicName}'...`, 'info');
-        try {
-            const folder = await window.TelegramAPI.selectFolder();
-            if (!folder) {
-                addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
-                return;
-            }
-            switchTab('downloads');
-            setDownloadLock(true);
-            addLog(`Iniciando descarga de todos los vídeos de '${topicName}' en '${folder}'...`, 'info');
-            await window.TelegramAPI.startDownload(chatId, topicId, null, folder);
-            startDownloadPolling();
-        } catch (err) {
-            setDownloadLock(false);
-            addLog(`Error al iniciar descarga: ${err.message}`, 'error');
-        }
     }
 
     function startDownloadPolling() {
@@ -1000,9 +1193,23 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!prog) return;
 
                 if (prog.queue && Array.isArray(prog.queue)) {
-                    downloadsList = prog.queue;
+                    prog.queue.forEach(qItem => {
+                        const localItem = downloadsList.find(it => it.name.toLowerCase() === qItem.name.toLowerCase());
+                        if (localItem) {
+                            localItem.status = qItem.status;
+                            localItem.percent = qItem.percent;
+                            localItem.speed = qItem.speed;
+                            localItem.eta = qItem.eta;
+                            localItem.dest = qItem.dest || localItem.dest;
+                            localItem.error = qItem.error;
+                            if (qItem.status === 'Completado') {
+                                localItem.checked = false;
+                            }
+                        }
+                    });
                     renderDownloadsTable(prog);
                     updateBadges();
+                    checkDownloadButtonState();
                 }
 
                 if (prog.logs && Array.isArray(prog.logs)) {
@@ -1021,6 +1228,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     setDownloadLock(false);
                     renderDownloadsTable(prog);
                     updateBadges();
+                    syncHeaderCheckbox();
+                    checkDownloadButtonState();
                     if (prog.error) {
                         addLog(`Descarga finalizada con error: ${prog.error}`, 'error');
                     }
@@ -1589,7 +1798,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (pendingTopicDownload) {
                 const { categoryId, topicId, topicName } = pendingTopicDownload;
                 pendingTopicDownload = null;
-                triggerTopicDownload(categoryId, topicId, topicName);
+                addTopicVideosToDownloadList(categoryId, topicId, topicName);
             }
         });
     }

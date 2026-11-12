@@ -103,13 +103,21 @@ const TelegramAPI = {
         return data.folder || '';
     },
 
-    // Inicia una descarga en el backend (de un tema completo o de un vídeo/parte específico)
-    async startDownload(chatId, topicId, videoName, destFolder) {
+    // Inicia una descarga en el backend (por lote estructurado o por vídeo/tema específico)
+    async startDownload(arg1, topicId, videoName, destFolder) {
         const formData = new FormData();
-        formData.append('chatId', chatId);
-        if (topicId) formData.append('topicId', topicId);
-        if (videoName) formData.append('videoName', videoName);
-        formData.append('destFolder', destFolder);
+        if (typeof arg1 === 'object' && arg1 !== null) {
+            formData.append('destFolder', arg1.destFolder);
+            if (arg1.itemsJson) formData.append('itemsJson', arg1.itemsJson);
+            if (arg1.chatId) formData.append('chatId', arg1.chatId);
+            if (arg1.topicId) formData.append('topicId', arg1.topicId);
+            if (arg1.videoName) formData.append('videoName', arg1.videoName);
+        } else {
+            formData.append('chatId', arg1);
+            if (topicId) formData.append('topicId', topicId);
+            if (videoName) formData.append('videoName', videoName);
+            formData.append('destFolder', destFolder);
+        }
 
         const response = await apiFetch('/download', { method: 'POST', body: formData });
         if (!response.ok) throw new Error(await readError(response));

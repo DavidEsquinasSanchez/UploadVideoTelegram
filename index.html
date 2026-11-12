@@ -41,66 +41,79 @@
                 <div class="content-wrapper">
                     <!-- Sección del Formulario -->
                     <section class="form-section">
-                        <form id="uploadForm" class="upload-form">
-                            
-                            <!-- Categoría (Grupos de Telegram) -->
-                            <div class="form-group">
-                                <label for="categoria">Categoría:</label>
-                                <select id="categoria" required>
-                                    <option value="">Selecciona Categoria...</option>
-                                </select>
-                            </div>
-
-                            <!-- Contenedor dinámico si la categoría tiene temas -->
-                            <div id="temasContainer" class="hidden">
+                        <!-- Vista de Subidas: Formulario completo de subida -->
+                        <div id="uploadViewControls">
+                            <form id="uploadForm" class="upload-form">
                                 
-                                <!-- Check de Serie Nueva -->
-                                <div class="form-group checkbox-group">
-                                    <input type="checkbox" id="serieNueva" disabled>
-                                    <label for="serieNueva">¿Serie nueva?</label>
-                                </div>
-
-                                <!-- SubCategoría (Temas) -->
-                                <div class="form-group" id="subcategoriaContainer">
-                                    <label for="subcategoria">SubCategoría:</label>
-                                    <select id="subcategoria">
-                                        <option value="">Selecciona subcategoria</option>
+                                <!-- Categoría (Grupos de Telegram) -->
+                                <div class="form-group">
+                                    <label for="categoria">Categoría:</label>
+                                    <select id="categoria" required>
+                                        <option value="">Selecciona Categoria...</option>
                                     </select>
                                 </div>
 
-                                <!-- Campos para Serie Nueva (Ocultos por defecto) -->
-                                <div id="nuevaSerieContainer" class="hidden">
-                                    <div class="form-group">
-                                        <label for="nombreSerie">Nombre Serie:</label>
-                                        <input type="text" id="nombreSerie" placeholder="Ej: Agata y Lola">
+                                <!-- Contenedor dinámico si la categoría tiene temas -->
+                                <div id="temasContainer" class="hidden">
+                                    
+                                    <!-- Check de Serie Nueva -->
+                                    <div class="form-group checkbox-group">
+                                        <input type="checkbox" id="serieNueva" disabled>
+                                        <label for="serieNueva">¿Serie nueva?</label>
                                     </div>
-                                    <div class="form-group">
-                                        <label for="temporada">Temporada:</label>
-                                        <input type="text" id="temporada" placeholder="Ej: 1">
+
+                                    <!-- SubCategoría (Temas) -->
+                                    <div class="form-group" id="subcategoriaContainer">
+                                        <label for="subcategoria">SubCategoría:</label>
+                                        <select id="subcategoria">
+                                            <option value="">Selecciona subcategoria</option>
+                                        </select>
                                     </div>
+
+                                    <!-- Campos para Serie Nueva (Ocultos por defecto) -->
+                                    <div id="nuevaSerieContainer" class="hidden">
+                                        <div class="form-group">
+                                            <label for="nombreSerie">Nombre Serie:</label>
+                                            <input type="text" id="nombreSerie" placeholder="Ej: Agata y Lola">
+                                        </div>
+                                        <div class="form-group">
+                                            <label for="temporada">Temporada:</label>
+                                            <input type="text" id="temporada" placeholder="Ej: 1">
+                                        </div>
+                                    </div>
+
                                 </div>
 
-                            </div>
-
-                            <!-- Archivo de Vídeo -->
-                            <div class="form-group video-input-group">
-                                <label for="btnSeleccionar">Seleccionar vídeo(s):</label>
-                                <div class="file-picker-row">
-                                    <button type="button" id="btnSeleccionar" class="btn-secondary" disabled>Seleccionar vídeos…</button>
+                                <!-- Archivo de Vídeo -->
+                                <div class="form-group video-input-group">
+                                    <label for="btnSeleccionar">Seleccionar vídeo(s):</label>
+                                    <div class="file-picker-row">
+                                        <button type="button" id="btnSeleccionar" class="btn-secondary" disabled>Seleccionar vídeos…</button>
+                                    </div>
+                                    <small class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
                                 </div>
-                                <small class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
-                            </div>
 
-                            <!-- Botones de Envío -->
-                            <div class="form-actions">
-                                <button type="button" id="btnCancelar" class="btn-cancel-upload hidden">Cancelar subida</button>
-                                <button type="button" id="btnCancelarDescarga" class="btn-cancel-upload hidden">Cancelar descarga</button>
-                                <button type="button" id="btnCrearTema" class="btn-secondary" disabled>Crear Tema</button>
-                                <button type="button" id="btnReintentar" class="btn-secondary" disabled>Reintentar</button>
-                                <button type="button" id="btnSubir" disabled>Subir Contenido</button>
-                            </div>
+                                <!-- Botones de Envío Subida -->
+                                <div class="form-actions">
+                                    <button type="button" id="btnCancelar" class="btn-cancel-upload hidden">Cancelar subida</button>
+                                    <button type="button" id="btnCrearTema" class="btn-secondary" disabled>Crear Tema</button>
+                                    <button type="button" id="btnReintentar" class="btn-secondary" disabled>Reintentar</button>
+                                    <button type="button" id="btnSubir" disabled>Subir Contenido</button>
+                                </div>
 
-                        </form>
+                            </form>
+                        </div>
+
+                        <!-- Vista de Descargas: Los 3 botones del formulario de descargas -->
+                        <div id="downloadViewControls" class="hidden">
+                            <div class="upload-form">
+                                <div class="form-actions download-form-actions" style="margin-top: 0;">
+                                    <button type="button" id="btnCancelarDescarga" class="btn-cancel-upload" disabled>Cancelar subida</button>
+                                    <button type="button" id="btnReintentarDescarga" class="btn-secondary" disabled>Reintentar</button>
+                                    <button type="button" id="btnDescargarContenido" disabled>Descargar contenido</button>
+                                </div>
+                            </div>
+                        </div>
                     </section>
 
                     <!-- Sección de la Tabla de Archivos y Descargas -->
@@ -167,10 +180,13 @@
                                 <table id="downloadsTable">
                                     <thead>
                                         <tr>
-                                            <th style="width: 38%;">Vídeo / Archivo</th>
+                                            <th style="width: 44px; text-align: center;">
+                                                <input type="checkbox" id="checkAllDownloads" title="Marcar / Desmarcar todos" checked>
+                                            </th>
+                                            <th style="width: 36%;">Vídeo / Archivo</th>
                                             <th style="width: 24%;">Carpeta Destino</th>
-                                            <th style="width: 28%;">Estado / Progreso</th>
-                                            <th style="width: 10%;">
+                                            <th style="width: 26%;">Estado / Progreso</th>
+                                            <th style="width: 8%;">
                                                 <div class="th-action-inner">
                                                     <span>Acción</span>
                                                     <button type="button" id="btnClearCompletedDownloads" class="btn-icon-header" title="Limpiar descargas completadas">🗑️</button>
