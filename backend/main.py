@@ -12,6 +12,7 @@ import math
 import os
 import re
 import secrets
+import shutil
 import subprocess
 import sys
 import time
@@ -167,6 +168,27 @@ refresh_task: Optional[asyncio.Task] = None
 refresh_guard = asyncio.Lock()
 dialog_lock = asyncio.Lock()
 
+active_download_task: Optional[asyncio.Task] = None
+download_state = {
+    "active": False,
+    "status": "Inactivo",
+    "percent": 0,
+    "eta": None,
+    "current_file": "",
+    "file_index": 0,
+    "total_files": 0,
+    "error": None,
+    "logs": []
+}
+download_tracker: Optional["SpeedTracker"] = None
+
+
+def add_download_log(msg: str, log_type: str = "info"):
+    log.info("[DOWNLOAD] %s", msg)
+    download_state["logs"].append({"msg": msg, "type": log_type, "ts": time.time()})
+    if len(download_state["logs"]) > 150:
+        download_state["logs"].pop(0)
+
 
 class RateLimiter:
     """Separa las peticiones de escaneo un intervalo mínimo, aunque vengan de varios canales a la vez."""
@@ -255,10 +277,12 @@ async def lifespan(app: FastAPI):
 
     for task in list(active_uploads.values()):
         task.cancel()
+    if active_download_task and not active_download_task.done():
+        active_download_task.cancel()
     if refresh_task and not refresh_task.done():
         refresh_task.cancel()
-    await asyncio.gather(*[t for t in (refresh_task, *active_uploads.values()) if t],
-                         return_exceptions=True)
+    all_tasks = [t for t in (refresh_task, active_download_task, *active_uploads.values()) if t]
+    await asyncio.gather(*all_tasks, return_exceptions=True)
     purge_temp_dir()
     await client.disconnect()
 
@@ -512,11 +536,14 @@ async def sync_channel(entity, chat_key: str, force_rescan: bool = False, title:
 
     try:
         # 1) Temas conocidos (+ General). Sin caché, se siembran buscando por ID.
-        candidates = set(topics_known) | {1}
-        if len(candidates) <= 1:
-            log.info("[SCAN] %s: sin caché de temas, busco por ID hasta %s", chat_key, FALLBACK_MAX_ID)
-            candidates |= set(range(1, FALLBACK_MAX_ID + 1))
-        topics = await load_topic_info(entity, candidates)
+        if forum:
+            candidates = set(topics_known) | {1}
+            if len(candidates) <= 1:
+                log.info("[SCAN] %s: sin caché de temas, busco por ID hasta %s", chat_key, FALLBACK_MAX_ID)
+                candidates |= set(range(1, FALLBACK_MAX_ID + 1))
+            topics = await load_topic_info(entity, candidates)
+        else:
+            topics = {1: {"title": "General", "top": 0}}
 
         # 2) Revalidar vídeos conocidos (borrados / caption editado)
         known_ids = sorted(int(k) for k in videos)
@@ -533,7 +560,8 @@ async def sync_channel(entity, chat_key: str, force_rescan: bool = False, title:
         new_topic_ids = set()
         scanned_to = msg_scanned
         tail_done = False
-        for _ in range(4):
+        rounds = 4 if forum else 1
+        for _ in range(rounds):
             target = max((t["top"] for t in topics.values()), default=0)
             if target > scanned_to:
                 await scan_range(entity, chat_key, scanned_to + 1, target, videos, new_topic_ids)
@@ -545,9 +573,10 @@ async def sync_channel(entity, chat_key: str, force_rescan: bool = False, title:
             new_topic_ids -= missing
             if not missing:
                 break
-            topics.update(await load_topic_info(entity, missing))
+            if forum:
+                topics.update(await load_topic_info(entity, missing))
 
-        names = {k: v["title"] for k, v in topics.items()}
+        names = {k: v["title"] for k, v in topics.items()} if forum else {}
 
         def commit(e):
             # Conserva lo que haya añadido otra tarea (subidas, temas nuevos) más allá de lo escaneado
@@ -575,19 +604,26 @@ async def sync_channel(entity, chat_key: str, force_rescan: bool = False, title:
 # ---------------------------------------------------------------------------
 # GRUPOS (lo que pinta la barra lateral)
 # ---------------------------------------------------------------------------
+def natural_sort_key(s: str):
+    return [int(text) if text.isdigit() else text.lower() for text in re.split(r"(\d+)", str(s or ""))]
+
+
 def assemble_group(identifier, title, forum, topics, videos) -> dict:
     topics_list = []
+    direct_videos = []
     if forum:
         by_topic = {}
         for tid, name in videos.values():
             key = tid if tid in topics else 1
             by_topic.setdefault(key, []).append(name)
         topics_list = [
-            {"id": str(tid), "nombre": tname, "videos": sorted(by_topic.get(tid, []), key=str.lower)}
+            {"id": str(tid), "nombre": tname, "videos": sorted(by_topic.get(tid, []), key=natural_sort_key)}
             for tid, tname in sorted(topics.items(), key=lambda kv: kv[1].lower())
             if str(tid) != "1" and tname.strip().lower() != "general"
         ]
-    return {"id": str(identifier), "nombre": title, "tieneTemas": bool(forum), "temas": topics_list}
+    else:
+        direct_videos = sorted([name for _, name in videos.values()], key=natural_sort_key)
+    return {"id": str(identifier), "nombre": title, "tieneTemas": bool(forum), "temas": topics_list, "videos": direct_videos}
 
 
 async def group_from_cache(identifier):
@@ -613,15 +649,14 @@ async def load_group(identifier, rescan: bool = False):
         entity = await client.get_entity(identifier)
         title = getattr(entity, "title", key)
         forum = bool(getattr(entity, "forum", False))
-        if forum:
-            topics, videos = await sync_channel(entity, key, rescan, title=title, forum=True)
-        else:
-            update_cache_entry(key, lambda e: e.update({"title": title, "forum": False}))
-            topics, videos = {}, {}
+        topics, videos = await sync_channel(entity, key, rescan, title=title, forum=forum)
         group = assemble_group(identifier, title, forum, topics, videos)
-        log.info("[OK] %s: foro=%s, temas=%s, vídeos=%s", title, forum, len(group["temas"]),
-                 sum(len(t["videos"]) for t in group["temas"]))
+        v_count = len(group.get("videos", [])) if not forum else sum(len(t["videos"]) for t in group["temas"])
+        log.info("[OK] %s: foro=%s, temas=%s, vídeos=%s", title, forum, len(group["temas"]), v_count)
         return group
+    except Exception as e:
+        log.error("No se pudo resolver el canal %s: %s", identifier, public_error(e), exc_info=True)
+        return await group_from_cache(identifier)
     except Exception as e:
         log.error("No se pudo resolver el canal %s: %s", identifier, public_error(e), exc_info=True)
         return await group_from_cache(identifier)
@@ -738,12 +773,15 @@ async def upload_with_retries(key, path, name, on_progress, state):
     raise last
 
 
-async def send_with_retries(key, entity, uploaded, name, topic_id):
+async def send_with_retries(key, entity, uploaded, name, topic_id, original_name=None):
     last = None
+    caption = name
+    if original_name and original_name != name:
+        caption = f"{name}\n[orig:{original_name}]"
     for attempt in range(1, SEND_ATTEMPTS + 1):
         try:
             update_progress(key, status="Enviando a Telegram")
-            return await client.send_file(entity, uploaded, caption=name, reply_to=topic_id)
+            return await client.send_file(entity, uploaded, caption=caption, reply_to=topic_id)
         except errors.FloodWaitError as e:
             last = e
             wait = e.seconds + 1
@@ -758,11 +796,11 @@ async def send_with_retries(key, entity, uploaded, name, topic_id):
     raise last
 
 
-async def upload_and_send(key, path, name, entity, topic_id, on_progress, state):
+async def upload_and_send(key, path, name, entity, topic_id, on_progress, state, original_name=None):
     for full_attempt in range(2):
         uploaded = await upload_with_retries(key, path, name, on_progress, state)
         try:
-            return await send_with_retries(key, entity, uploaded, name, topic_id)
+            return await send_with_retries(key, entity, uploaded, name, topic_id, original_name=original_name)
         except errors.RPCError as e:
             if full_attempt == 0 and _is_missing_parts(e):
                 # Telegram descartó partes ya subidas: se repite la subida completa una vez
@@ -773,7 +811,7 @@ async def upload_and_send(key, path, name, entity, topic_id, on_progress, state)
             raise
 
 
-async def run_upload(key, path, size, name, chat_id, topic_id, file_id=None):
+async def run_upload(key, path, size, name, chat_id, topic_id, file_id=None, original_name=None):
     started = time.monotonic()
     state = UploadState()
     tracker = SpeedTracker()
@@ -792,7 +830,7 @@ async def run_upload(key, path, size, name, chat_id, topic_id, file_id=None):
     try:
         log.info("[INICIO] '%s' (%.1f MB) -> chat %s, tema %s", name, size / 1e6, chat_id, topic_id)
         entity = await client.get_entity(chat_id)
-        sent = await upload_and_send(key, path, name, entity, topic_id, on_progress, state)
+        sent = await upload_and_send(key, path, name, entity, topic_id, on_progress, state, original_name=original_name)
         try:
             cache_add_video(chat_id, sent.id, topic_id, name)   # aparece en la barra lateral
         except Exception as e:
@@ -815,11 +853,11 @@ async def run_upload(key, path, size, name, chat_id, topic_id, file_id=None):
         trackers.pop(key, None)
 
 
-async def start_and_wait(key, path, size, name, chat_id, topic_id, file_id=None):
+async def start_and_wait(key, path, size, name, chat_id, topic_id, file_id=None, original_name=None):
     if key in active_uploads:
         raise HTTPException(409, "Este archivo ya se está subiendo")
     purge_progress()
-    task = asyncio.create_task(run_upload(key, path, size, name, chat_id, topic_id, file_id))
+    task = asyncio.create_task(run_upload(key, path, size, name, chat_id, topic_id, file_id, original_name=original_name))
     active_uploads[key] = task
     await asyncio.wait({task})              # si el navegador se desconecta, la subida continúa
     if task.cancelled():
@@ -1052,6 +1090,7 @@ async def get_progress(key: str):
 async def upload_selected(
     fileId: str = Form(...),
     transformedName: str = Form(...),
+    originalName: str = Form(None),
     chatId: str = Form(...),
     topicId: str = Form(None),
 ):
@@ -1064,6 +1103,7 @@ async def upload_selected(
     key = validate_key(fileId)
     chat, topic = validate_target(chatId, topicId)
     name = sanitize_name(transformedName)
+    orig_name = (info.get("name") if info else None) or originalName
 
     upload_path = info["path"]
     is_part = info.get("is_part", False)
@@ -1101,7 +1141,7 @@ async def upload_selected(
 
     try:
         size = os.path.getsize(upload_path)
-        return await start_and_wait(key, upload_path, size, name, chat, topic, file_id=fileId)
+        return await start_and_wait(key, upload_path, size, name, chat, topic, file_id=fileId, original_name=orig_name)
     finally:
         if temp_part_file and temp_part_file.is_file():
             try:
@@ -1120,6 +1160,355 @@ async def cancel_uploads(keys: str = Form("")):
             task.cancel()
             cancelled.append(key)
     return {"cancelled": cancelled}
+
+
+# ---------------------------------------------------------------------------
+# SELECTOR NATIVO DE CARPETA (para guardar descargas)
+# ---------------------------------------------------------------------------
+FOLDER_DIALOG_SCRIPT = r'''
+import sys
+import tkinter as tk
+from tkinter import filedialog
+root = tk.Tk()
+root.withdraw()
+root.attributes("-topmost", True)
+folder = filedialog.askdirectory(parent=root, title="Selecciona la carpeta donde guardar los vídeos")
+root.destroy()
+sys.stdout.write(folder or "")
+'''
+
+
+def _run_folder_dialog() -> str:
+    proc = subprocess.run(
+        [sys.executable, "-c", FOLDER_DIALOG_SCRIPT], capture_output=True, text=True, timeout=900,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    if proc.returncode != 0:
+        raise RuntimeError(proc.stderr.strip() or "El selector de carpetas terminó con error")
+    return (proc.stdout or "").strip()
+
+
+# ---------------------------------------------------------------------------
+# UTILIDADES Y MOTOR DE DESCARGA
+# ---------------------------------------------------------------------------
+def get_multipart_base(name: str) -> Optional[str]:
+    """
+    Si el nombre corresponde a un corte binario (ej. 'Serie 1x01.mp4.001' o 'Peli.mp4.002'),
+    devuelve el nombre unificado base sin el sufijo de parte (ej. 'Serie 1x01.mp4').
+    """
+    m = re.match(r"^(.*?\.(?:mp4|mkv|avi|mov|webm|m4v|wmv|flv|ts))\.\d{3,4}$", name, re.IGNORECASE)
+    if m:
+        return m.group(1)
+    m2 = re.match(r"^(.*?)\.\d{3,4}$", name)
+    if m2:
+        return m2.group(1)
+    return None
+
+
+def detect_container_format(file_path: str) -> Optional[str]:
+    """Detecta la extensión real del contenedor de vídeo analizando los magic bytes de cabecera."""
+    try:
+        with open(file_path, "rb") as f:
+            header = f.read(16384)
+        if len(header) < 12:
+            return None
+        # EBML (Matroska / WebM)
+        if header.startswith(b"\x1a\x45\xdf\xa3"):
+            if b"webm" in header[:64].lower():
+                return ".webm"
+            return ".mkv"
+        # AVI (RIFF .... AVI )
+        if header.startswith(b"RIFF") and len(header) >= 12 and header[8:12] == b"AVI ":
+            return ".avi"
+        # MP4 / QuickTime MOV / M4V
+        if b"ftyp" in header[:32]:
+            idx = header.find(b"ftyp")
+            brand = header[idx+4:idx+8]
+            if brand in (b"qt  ", b"moov"):
+                return ".mov"
+            return ".mp4"
+        # FLV
+        if header.startswith(b"FLV"):
+            return ".flv"
+        # WMV / ASF
+        if header.startswith(b"\x30\x26\xb2\x75\x8e\x66\xcf\x11"):
+            return ".wmv"
+        # MPEG-TS (sync byte 0x47 con periodicidad de 188 o 204 bytes)
+        if header[0] == 0x47 and len(header) >= 376 and header[188] == 0x47:
+            return ".ts"
+    except Exception as e:
+        log.warning("No se pudo inspeccionar cabecera binaria de '%s': %s", file_path, e)
+    return None
+
+
+def extract_original_meta(msg) -> Optional[str]:
+    """Extrae el nombre original guardado en el caption de Telegram si existe ([orig:...])."""
+    caption = (getattr(msg, "message", "") or "").strip()
+    m = re.search(r"\[orig:(.*?)\]", caption)
+    if m:
+        return m.group(1).strip()
+    return None
+
+
+def resolve_final_name(msg, current_name: str, file_path: str) -> str:
+    """
+    Restaura el nombre o la extensión original si difiere:
+    1) De los metadatos [orig:...] guardados en Telegram (para archivos subidos con esta versión).
+    2) De la inspección de cabecera binaria (para archivos existentes o sin etiqueta).
+    """
+    target_ext = None
+    orig_meta = extract_original_meta(msg) if msg else None
+    if orig_meta:
+        _, ext = os.path.splitext(orig_meta)
+        if ext:
+            target_ext = ext.lower()
+            add_download_log(f"Formato reconocido por metadatos de Telegram: {target_ext}", "info")
+
+    if not target_ext:
+        detected = detect_container_format(file_path)
+        if detected:
+            target_ext = detected.lower()
+            add_download_log(f"Formato detectado por firma binaria (Magic Bytes): {target_ext}", "info")
+
+    if target_ext:
+        base, cur_ext = os.path.splitext(current_name)
+        if cur_ext.lower() != target_ext:
+            restored = f"{base}{target_ext}"
+            add_download_log(f"Restaurando formato original: '{current_name}' -> '{restored}'", "info")
+            return restored
+
+    return current_name
+
+
+async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Path):
+    global download_tracker, active_download_task
+    started_total = time.monotonic()
+    total_items = len(items_to_download)
+    add_download_log(f"[INICIO DESCARGA] {total_items} elemento(s) -> '{dest_dir}'", "info")
+    download_state["active"] = True
+    download_state["error"] = None
+    download_state["total_files"] = total_items
+
+    try:
+        entity = await client.get_entity(chat_id)
+
+        for item_idx, item in enumerate(items_to_download, 1):
+            download_state["file_index"] = item_idx
+            target_name = item["final_name"]
+            parts = item["parts"]
+            num_parts = len(parts)
+
+            part_suffix = f" ({num_parts} partes binarias)" if num_parts > 1 else ""
+            add_download_log(f"[{item_idx}/{total_items}] Preparando descarga: '{target_name}'{part_suffix}", "info")
+
+            downloaded_temp_files = []
+            first_msg = None
+
+            try:
+                for p_idx, (mid, pname) in enumerate(parts, 1):
+                    msg = await client.get_messages(entity, ids=mid)
+                    if not msg or not getattr(msg, "media", None):
+                        raise RuntimeError(f"No se encontró el mensaje #{mid} ({pname}) en Telegram")
+
+                    if first_msg is None:
+                        first_msg = msg
+
+                    temp_part = dest_dir / f".tmp_part_{p_idx}_{uuid.uuid4().hex[:8]}.part"
+                    downloaded_temp_files.append(temp_part)
+
+                    download_tracker = SpeedTracker()
+                    last_logged = [-10]
+                    part_start = time.monotonic()
+
+                    def on_progress(current, total):
+                        pct = int(current * 100 / total) if total else 0
+                        if download_tracker:
+                            download_tracker.add(current, total)
+                            eta = download_tracker.eta()
+                        else:
+                            eta = None
+                        download_state["percent"] = pct
+                        download_state["eta"] = eta
+                        part_info = f" (Parte {p_idx}/{num_parts})" if num_parts > 1 else ""
+                        status_str = f"Descargando{part_info}: {pct}%"
+                        if eta is not None:
+                            status_str += f" · quedan {eta}s"
+                        download_state["status"] = status_str
+                        download_state["current_file"] = f"{target_name}{part_info}"
+
+                        if pct - last_logged[0] >= 10 or pct == 100:
+                            last_logged[0] = pct
+                            log.info("Descargando '%s'%s: %s%% (%s / %s bytes)", target_name, part_info, pct, current, total)
+
+                    add_download_log(f"Descargando parte {p_idx}/{num_parts}: '{pname}'...", "info")
+                    await client.download_media(msg, file=str(temp_part), progress_callback=on_progress)
+                    part_elapsed = max(time.monotonic() - part_start, 0.001)
+                    part_size = temp_part.stat().st_size
+                    speed_mb = part_size / part_elapsed / 1e6
+                    add_download_log(f"Completada parte {p_idx}/{num_parts}: '{pname}' en {part_elapsed:.0f}s ({speed_mb:.1f} MB/s)", "info")
+
+                # Unión de partes si fue fraccionado
+                if num_parts > 1:
+                    download_state["status"] = f"Uniendo {num_parts} partes binarias..."
+                    add_download_log(f"Uniendo {num_parts} partes binarias en un único archivo...", "info")
+                    merged_tmp = dest_dir / f".tmp_merged_{uuid.uuid4().hex[:8]}.tmp"
+                    with open(merged_tmp, "wb") as f_out:
+                        for p in downloaded_temp_files:
+                            with open(p, "rb") as f_in:
+                                shutil.copyfileobj(f_in, f_out, length=16*1024*1024)
+                            try:
+                                p.unlink()
+                            except Exception:
+                                pass
+                    downloaded_temp_files = [merged_tmp]
+                    assembly_file = merged_tmp
+                else:
+                    assembly_file = downloaded_temp_files[0]
+
+                # Restaurar formato original si difiere
+                final_name = resolve_final_name(first_msg, target_name, str(assembly_file))
+                final_dest_path = dest_dir / final_name
+
+                if final_dest_path.exists():
+                    base_stem, ext = os.path.splitext(final_name)
+                    counter = 1
+                    while final_dest_path.exists():
+                        final_dest_path = dest_dir / f"{base_stem} ({counter}){ext}"
+                        counter += 1
+                    final_name = final_dest_path.name
+
+                assembly_file.replace(final_dest_path)
+                downloaded_temp_files.clear()
+
+                add_download_log(f"[ÉXITO] Guardado archivo completo: '{final_name}'", "success")
+
+            except Exception as e:
+                for p in downloaded_temp_files:
+                    if p.is_file():
+                        try:
+                            p.unlink()
+                        except Exception:
+                            pass
+                raise
+
+        total_elapsed = max(time.monotonic() - started_total, 0.001)
+        add_download_log(f"[FIN] Todas las descargas finalizadas con éxito en {total_elapsed:.0f}s.", "success")
+        download_state["status"] = "Completado"
+        download_state["percent"] = 100
+
+    except asyncio.CancelledError:
+        add_download_log("Descarga cancelada.", "warning")
+        download_state["status"] = "Cancelado"
+    except Exception as e:
+        err_msg = public_error(e)
+        add_download_log(f"Error en la descarga: {err_msg}", "error")
+        download_state["status"] = f"Error: {err_msg}"
+        download_state["error"] = err_msg
+    finally:
+        download_state["active"] = False
+        active_download_task = None
+
+
+@app.post("/api/select_folder")
+async def select_folder():
+    """Abre el selector nativo de carpetas de Windows para elegir dónde guardar los vídeos."""
+    if dialog_lock.locked():
+        raise HTTPException(409, "Ya hay un selector abierto")
+    async with dialog_lock:
+        try:
+            folder = await asyncio.to_thread(_run_folder_dialog)
+        except Exception as e:
+            log.error("Selector de carpetas: %s", public_error(e))
+            raise HTTPException(500, "No se pudo abrir el selector de carpetas")
+    return {"folder": folder or ""}
+
+
+@app.post("/api/download")
+async def start_download(
+    chatId: str = Form(...),
+    topicId: Optional[str] = Form(None),
+    videoName: Optional[str] = Form(None),
+    destFolder: str = Form(...),
+):
+    global active_download_task
+    if active_download_task and not active_download_task.done():
+        raise HTTPException(409, "Ya hay una descarga en curso")
+
+    chat = validate_chat(chatId)
+    folder_path = Path(destFolder)
+    if not folder_path.is_dir():
+        raise HTTPException(400, f"La carpeta de destino no existe: {destFolder}")
+
+    topic = None
+    if topicId and topicId != "null" and topicId.strip():
+        try:
+            topic = int(topicId)
+        except ValueError:
+            raise HTTPException(400, "Tema no válido")
+
+    _, cached_videos = read_cached(str(chat))
+
+    items_to_download = []
+
+    # 1) Si se solicita un vídeo concreto (o una parte)
+    if videoName and videoName != "null" and videoName.strip():
+        target_name = videoName.strip()
+        base = get_multipart_base(target_name) or target_name
+
+        parts = []
+        for mid, (tid, vname) in cached_videos.items():
+            if topic is not None and tid != topic:
+                continue
+            v_base = get_multipart_base(vname) or vname
+            if v_base.lower() == base.lower():
+                parts.append((int(mid), vname))
+
+        if not parts:
+            raise HTTPException(404, f"No se encontró el vídeo '{videoName}' en Telegram")
+
+        parts.sort(key=lambda x: natural_sort_key(x[1]))
+        items_to_download = [{"final_name": base, "parts": parts}]
+
+    # 2) Si se solicita descargar todo un tema
+    elif topic is not None:
+        logical_dict = {}
+        for mid, (tid, vname) in cached_videos.items():
+            if tid != topic:
+                continue
+            base = get_multipart_base(vname) or vname
+            logical_dict.setdefault(base, []).append((int(mid), vname))
+
+        if not logical_dict:
+            raise HTTPException(404, "No hay vídeos para descargar en este tema")
+
+        for base in sorted(logical_dict.keys(), key=natural_sort_key):
+            parts = sorted(logical_dict[base], key=lambda x: natural_sort_key(x[1]))
+            items_to_download.append({"final_name": base, "parts": parts})
+
+    else:
+        raise HTTPException(400, "Debes especificar un tema o un vídeo para descargar")
+
+    download_state["logs"].clear()
+    download_state["status"] = "Iniciando descarga..."
+    download_state["percent"] = 0
+    download_state["active"] = True
+
+    active_download_task = asyncio.create_task(run_download_task(chat, items_to_download, folder_path))
+    return {"ok": True, "total_items": len(items_to_download)}
+
+
+@app.get("/api/download_progress")
+async def get_download_progress():
+    return {
+        "active": download_state["active"],
+        "status": download_state["status"],
+        "percent": download_state["percent"],
+        "eta": download_state["eta"],
+        "current_file": download_state["current_file"],
+        "file_index": download_state["file_index"],
+        "total_files": download_state["total_files"],
+        "error": download_state["error"],
+        "logs": download_state["logs"][-25:]
+    }
 
 
 # Archivos estáticos: solo estas carpetas (nunca la raíz, para no exponer backend/ ni la sesión)

@@ -80,6 +80,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmDeleteOk = document.getElementById('btnConfirmDeleteOk');
     const btnCancelDeleteOk = document.getElementById('btnCancelDeleteOk');
 
+    const downloadTopicModal = document.getElementById('downloadTopicModal');
+    const downloadTopicModalText = document.getElementById('downloadTopicModalText');
+    const btnConfirmDownloadTopic = document.getElementById('btnConfirmDownloadTopic');
+    const btnCancelDownloadTopic = document.getElementById('btnCancelDownloadTopic');
+
+    const DOWNLOAD_LOCKED_MSG = "Descarga en curso. Al finalizar se volverá a habilitar";
+    let isDownloading = false;
+    let pendingTopicDownload = null;
+    let downloadPollInterval = null;
+    let seenDownloadLogs = new Set();
+
     // --------------------------------------------------- Menú lateral colapsable
     function toggleSidebar() {
         if (!sidebar) return;
@@ -326,14 +337,51 @@ document.addEventListener('DOMContentLoaded', async () => {
                         count.className = 'video-count';
                         count.textContent = videos.length;
 
-                        row.append(icon, name, count);
+                        // Botón de descarga de todos los vídeos del tema
+                        const btnDlTopic = document.createElement('button');
+                        btnDlTopic.type = 'button';
+                        btnDlTopic.className = 'btn-download-topic';
+                        btnDlTopic.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar todos los archivos';
+                        btnDlTopic.disabled = isDownloading;
+                        btnDlTopic.textContent = '⬇️';
+                        btnDlTopic.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            if (isDownloading) return;
+                            pendingTopicDownload = { categoryId: grupo.id, topicId: tema.id, topicName: tema.nombre };
+                            if (downloadTopicModalText) {
+                                downloadTopicModalText.textContent = `¿Deseas descargar todos los vídeos del tema "${tema.nombre}"?`;
+                            }
+                            if (downloadTopicModal) {
+                                downloadTopicModal.classList.remove('hidden');
+                            }
+                        });
+
+                        row.append(icon, name, count, btnDlTopic);
 
                         const videoList = document.createElement('ul');
                         videoList.className = 'video-list';
                         videos.forEach(v => {
                             const li = document.createElement('li');
                             li.className = 'video-item';
-                            li.textContent = v;
+
+                            const vTitle = document.createElement('span');
+                            vTitle.className = 'video-item-title';
+                            vTitle.textContent = v;
+                            vTitle.title = v;
+
+                            const btnDlVideo = document.createElement('button');
+                            btnDlVideo.type = 'button';
+                            btnDlVideo.className = 'btn-download-video';
+                            btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
+                            btnDlVideo.disabled = isDownloading;
+                            btnDlVideo.textContent = '⬇️';
+                            btnDlVideo.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                if (isDownloading) return;
+                                triggerVideoDownload(grupo.id, tema.id, v);
+                            });
+
+                            li.append(vTitle, btnDlVideo);
                             videoList.appendChild(li);
                         });
 
@@ -357,6 +405,36 @@ document.addEventListener('DOMContentLoaded', async () => {
                     sublist.appendChild(subItem);
                 });
                 folderDiv.appendChild(sublist);
+            } else if (!grupo.tieneTemas && grupo.videos && grupo.videos.length > 0) {
+                const videoList = document.createElement('ul');
+                videoList.className = 'video-list direct-channel-videos';
+                const directVideos = (grupo.videos || []).slice().sort(compareTransformedTitles);
+
+                directVideos.forEach(v => {
+                    const li = document.createElement('li');
+                    li.className = 'video-item';
+
+                    const vTitle = document.createElement('span');
+                    vTitle.className = 'video-item-title';
+                    vTitle.textContent = v;
+                    vTitle.title = v;
+
+                    const btnDlVideo = document.createElement('button');
+                    btnDlVideo.type = 'button';
+                    btnDlVideo.className = 'btn-download-video';
+                    btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
+                    btnDlVideo.disabled = isDownloading;
+                    btnDlVideo.textContent = '⬇️';
+                    btnDlVideo.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        if (isDownloading) return;
+                        triggerVideoDownload(grupo.id, null, v);
+                    });
+
+                    li.append(vTitle, btnDlVideo);
+                    videoList.appendChild(li);
+                });
+                folderDiv.appendChild(videoList);
             }
             sidebarGroups.appendChild(folderDiv);
         });
@@ -465,6 +543,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selectionEnabled = isFormValid && !uploading;
         btnSeleccionar.disabled = !selectionEnabled;
         btnCrearTema.disabled = !canCreateTopic || uploading;
+
+        if (isDownloading) {
+            btnSeleccionar.disabled = true;
+            btnSeleccionar.title = DOWNLOAD_LOCKED_MSG;
+            btnSubir.disabled = true;
+            btnSubir.title = DOWNLOAD_LOCKED_MSG;
+            btnReintentar.disabled = true;
+            btnReintentar.title = DOWNLOAD_LOCKED_MSG;
+            btnCrearTema.disabled = !canCreateTopic;
+            btnCrearTema.title = canCreateTopic ? 'Crear Tema' : '';
+            return;
+        }
+
         checkUploadButtonState();
     }
 
@@ -511,10 +602,135 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     function checkUploadButtonState() {
+        if (isDownloading) {
+            btnSubir.disabled = true;
+            btnSubir.title = DOWNLOAD_LOCKED_MSG;
+            btnReintentar.disabled = true;
+            btnReintentar.title = DOWNLOAD_LOCKED_MSG;
+            return;
+        }
         const hasFilesToUpload = filesToUpload.some(f => UPLOADABLE.includes(f.status));
         btnSubir.disabled = !hasFilesToUpload || uploading;
+        btnSubir.title = '';
         // "Reintentar" solo tiene sentido si hay archivos con error (y no se está subiendo)
         btnReintentar.disabled = uploading || !filesToUpload.some(f => f.status === 'Error en subida');
+        btnReintentar.title = '';
+    }
+
+    // ------------------------------------------------- Bloqueo y Control de Descargas
+    function setDownloadLock(locked) {
+        isDownloading = locked;
+
+        const mainButtons = [
+            btnSeleccionar,
+            btnSubir,
+            btnReintentar,
+            btnCancelar,
+            btnRefresh,
+            btnDeleteAll,
+            btnDeleteOk,
+            ...document.querySelectorAll('.btn-delete-row'),
+            ...document.querySelectorAll('.btn-edit-transformed'),
+            ...document.querySelectorAll('.btn-download-topic'),
+            ...document.querySelectorAll('.btn-download-video')
+        ].filter(Boolean);
+
+        if (locked) {
+            mainButtons.forEach(btn => {
+                if (!btn.dataset.prevTitle) {
+                    btn.dataset.prevTitle = btn.getAttribute('title') || '';
+                }
+                btn.disabled = true;
+                btn.setAttribute('title', DOWNLOAD_LOCKED_MSG);
+            });
+            categoriaSelect.disabled = true;
+            subcategoriaSelect.disabled = true;
+        } else {
+            mainButtons.forEach(btn => {
+                btn.disabled = false;
+                if (btn.dataset.prevTitle !== undefined) {
+                    btn.setAttribute('title', btn.dataset.prevTitle);
+                    delete btn.dataset.prevTitle;
+                }
+            });
+            categoriaSelect.disabled = false;
+            subcategoriaSelect.disabled = false;
+            validateForm();
+            checkUploadButtonState();
+            renderTable();
+            renderSidebar();
+        }
+    }
+
+    async function triggerVideoDownload(chatId, topicId, videoName) {
+        if (isDownloading) return;
+        addLog(`Selecciona la carpeta donde guardar '${videoName}'...`, 'info');
+        try {
+            const folder = await window.TelegramAPI.selectFolder();
+            if (!folder) {
+                addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
+                return;
+            }
+            setDownloadLock(true);
+            addLog(`Iniciando descarga de '${videoName}' en '${folder}'...`, 'info');
+            await window.TelegramAPI.startDownload(chatId, topicId, videoName, folder);
+            startDownloadPolling();
+        } catch (err) {
+            setDownloadLock(false);
+            addLog(`Error al iniciar descarga: ${err.message}`, 'error');
+        }
+    }
+
+    async function triggerTopicDownload(chatId, topicId, topicName) {
+        if (isDownloading) return;
+        addLog(`Selecciona la carpeta donde guardar todos los vídeos de '${topicName}'...`, 'info');
+        try {
+            const folder = await window.TelegramAPI.selectFolder();
+            if (!folder) {
+                addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
+                return;
+            }
+            setDownloadLock(true);
+            addLog(`Iniciando descarga de todos los vídeos de '${topicName}' en '${folder}'...`, 'info');
+            await window.TelegramAPI.startDownload(chatId, topicId, null, folder);
+            startDownloadPolling();
+        } catch (err) {
+            setDownloadLock(false);
+            addLog(`Error al iniciar descarga: ${err.message}`, 'error');
+        }
+    }
+
+    function startDownloadPolling() {
+        if (downloadPollInterval) clearInterval(downloadPollInterval);
+        seenDownloadLogs.clear();
+
+        downloadPollInterval = setInterval(async () => {
+            try {
+                const prog = await window.TelegramAPI.getDownloadProgress();
+                if (!prog) return;
+
+                if (prog.logs && Array.isArray(prog.logs)) {
+                    prog.logs.forEach(l => {
+                        const logKey = `${l.ts}_${l.msg}`;
+                        if (!seenDownloadLogs.has(logKey)) {
+                            seenDownloadLogs.add(logKey);
+                            addLog(l.msg, l.type || 'info');
+                        }
+                    });
+                }
+
+                if (!prog.active) {
+                    clearInterval(downloadPollInterval);
+                    downloadPollInterval = null;
+                    setDownloadLock(false);
+                    if (prog.error) {
+                        addLog(`Descarga finalizada con error: ${prog.error}`, 'error');
+                    }
+                }
+            } catch (e) {
+                // Errores temporales de red/sondeo
+            }
+        }, 1000);
     }
 
     // ------------------------------------------------- Nombres de episodio/serie
@@ -929,9 +1145,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnEdit = document.createElement('button');
             btnEdit.type = 'button';
             btnEdit.className = 'btn-edit-transformed';
-            btnEdit.title = 'Editar título transformado';
+            btnEdit.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Editar título transformado';
             btnEdit.textContent = '✏️';
-            btnEdit.disabled = isWorkingStatus(fileObj.status);
+            btnEdit.disabled = isWorkingStatus(fileObj.status) || isDownloading;
             btnEdit.addEventListener('click', (e) => {
                 e.stopPropagation();
                 startEditingTransformedName(fileObj, cellWrapper);
@@ -955,7 +1171,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.className = 'btn-delete-row';
             btn.dataset.id = fileObj.id;
             btn.textContent = 'Eliminar';
-            btn.disabled = isWorkingStatus(fileObj.status);
+            btn.title = isDownloading ? DOWNLOAD_LOCKED_MSG : '';
+            btn.disabled = isWorkingStatus(fileObj.status) || isDownloading;
             btn.addEventListener('click', () => {
                 fileToDeleteId = fileObj.id;
                 deleteModal.classList.remove('hidden');
@@ -1065,6 +1282,34 @@ document.addEventListener('DOMContentLoaded', async () => {
         addLog(`Se han eliminado ${totalBefore - filesToUpload.length} archivo(s) con estado 'Subido OK'.`, "info");
         deleteOkModal.classList.add('hidden');
     });
+
+    // ---------------------------------------------------------------- Descarga de tema (Modal)
+    if (btnConfirmDownloadTopic) {
+        btnConfirmDownloadTopic.addEventListener('click', () => {
+            if (downloadTopicModal) downloadTopicModal.classList.add('hidden');
+            if (pendingTopicDownload) {
+                const { categoryId, topicId, topicName } = pendingTopicDownload;
+                pendingTopicDownload = null;
+                triggerTopicDownload(categoryId, topicId, topicName);
+            }
+        });
+    }
+
+    if (btnCancelDownloadTopic) {
+        btnCancelDownloadTopic.addEventListener('click', () => {
+            if (downloadTopicModal) downloadTopicModal.classList.add('hidden');
+            pendingTopicDownload = null;
+        });
+    }
+
+    if (downloadTopicModal) {
+        downloadTopicModal.addEventListener('click', (e) => {
+            if (e.target === downloadTopicModal) {
+                downloadTopicModal.classList.add('hidden');
+                pendingTopicDownload = null;
+            }
+        });
+    }
 
     // ------------------------------------------------------------------ Subida
     async function runOne(fileObj, categoryId, topicId) {
