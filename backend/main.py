@@ -63,8 +63,7 @@ SESSION_NAME = "nigroserver_session"
 
 TARGET_CHANNELS = [
     -1004433458655,
-    -1003975241498,
-    -1004332443797,
+    -1003975241498
 ]
 
 # Servidor: solo accesible desde este equipo
