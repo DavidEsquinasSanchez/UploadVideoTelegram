@@ -1309,24 +1309,25 @@ def resolve_final_name(msg, current_name: str, file_path: str) -> str:
     return current_name
 
 
-async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Path):
+async def run_download_task(chat_id: int, items_to_download: list, default_dest_dir: Optional[Path] = None):
     global download_tracker, active_download_task
     started_total = time.monotonic()
     total_items = len(items_to_download)
-    add_download_log(f"[INICIO DESCARGA] {total_items} elemento(s) -> '{dest_dir}'", "info")
+    add_download_log(f"[INICIO DESCARGA] {total_items} elemento(s)", "info")
     download_state["active"] = True
     download_state["error"] = None
     download_state["total_files"] = total_items
-    download_state["dest_dir"] = str(dest_dir)
 
     try:
-        entity = await client.get_entity(chat_id)
-
         for item_idx, item in enumerate(items_to_download, 1):
             download_state["file_index"] = item_idx
             target_name = item["final_name"]
             parts = item["parts"]
             num_parts = len(parts)
+
+            item_dest_dir = Path(item.get("dest_dir") or default_dest_dir)
+            dest_dir = item_dest_dir
+            download_state["dest_dir"] = str(dest_dir)
 
             item_chat_id = item.get("chat_id", chat_id)
             entity = await client.get_entity(item_chat_id)
@@ -1337,9 +1338,10 @@ async def run_download_task(chat_id: int, items_to_download: list, dest_dir: Pat
                 curr_queue_item["status"] = "Descargando"
                 curr_queue_item["current_part"] = 1
                 curr_queue_item["percent"] = 0
+                curr_queue_item["dest"] = str(dest_dir)
 
             part_suffix = f" ({num_parts} partes binarias)" if num_parts > 1 else ""
-            add_download_log(f"[{item_idx}/{total_items}] Preparando descarga: '{target_name}'{part_suffix}", "info")
+            add_download_log(f"[{item_idx}/{total_items}] Preparando descarga: '{target_name}'{part_suffix} -> '{dest_dir}'", "info")
 
             downloaded_temp_files = []
             first_msg = None
@@ -1512,7 +1514,7 @@ async def select_folder():
 
 @app.post("/api/download")
 async def start_download(
-    destFolder: str = Form(...),
+    destFolder: Optional[str] = Form(None),
     chatId: Optional[str] = Form(None),
     topicId: Optional[str] = Form(None),
     videoName: Optional[str] = Form(None),
@@ -1522,9 +1524,7 @@ async def start_download(
     if active_download_task and not active_download_task.done():
         raise HTTPException(409, "Ya hay una descarga en curso")
 
-    folder_path = Path(destFolder)
-    if not folder_path.is_dir():
-        raise HTTPException(400, f"La carpeta de destino no existe: {destFolder}")
+    folder_path = Path(destFolder) if destFolder and destFolder.strip() else None
 
     items_to_download = []
     default_chat = None
@@ -1549,6 +1549,11 @@ async def start_download(
             v_name = str(it.get("videoName", "")).strip()
             base = get_multipart_base(v_name) or v_name
 
+            raw_dest = it.get("dest") or (str(folder_path) if folder_path else "")
+            if not raw_dest or not Path(raw_dest).is_dir():
+                raise HTTPException(400, f"La carpeta de destino no existe o no es válida: '{raw_dest}'")
+            it_dest_path = Path(raw_dest)
+
             _, cached_videos = read_cached(str(c_id))
             parts = []
             for mid, (tid, vn) in cached_videos.items():
@@ -1560,7 +1565,7 @@ async def start_download(
 
             if parts:
                 parts.sort(key=lambda x: natural_sort_key(x[1]))
-                items_to_download.append({"final_name": base, "parts": parts, "chat_id": c_id})
+                items_to_download.append({"final_name": base, "parts": parts, "chat_id": c_id, "dest_dir": it_dest_path})
 
         if not items_to_download:
             raise HTTPException(404, "No se encontraron vídeos válidos en Telegram para los elementos seleccionados")
@@ -1569,6 +1574,8 @@ async def start_download(
     elif videoName and videoName != "null" and videoName.strip():
         if not chatId:
             raise HTTPException(400, "Falta chatId")
+        if not folder_path or not folder_path.is_dir():
+            raise HTTPException(400, f"La carpeta de destino no existe: {destFolder}")
         chat = validate_chat(chatId)
         default_chat = chat
         topic = int(topicId) if topicId and topicId != "null" and topicId.strip() else None
@@ -1588,10 +1595,12 @@ async def start_download(
             raise HTTPException(404, f"No se encontró el vídeo '{videoName}' en Telegram")
 
         parts.sort(key=lambda x: natural_sort_key(x[1]))
-        items_to_download = [{"final_name": base, "parts": parts, "chat_id": chat}]
+        items_to_download = [{"final_name": base, "parts": parts, "chat_id": chat, "dest_dir": folder_path}]
 
     # 3) Si se solicita descargar todo un tema directamente
     elif topicId is not None and chatId is not None:
+        if not folder_path or not folder_path.is_dir():
+            raise HTTPException(400, f"La carpeta de destino no existe: {destFolder}")
         chat = validate_chat(chatId)
         default_chat = chat
         topic = int(topicId)
@@ -1608,13 +1617,14 @@ async def start_download(
 
         for base in sorted(logical_dict.keys(), key=natural_sort_key):
             parts = sorted(logical_dict[base], key=lambda x: natural_sort_key(x[1]))
-            items_to_download.append({"final_name": base, "parts": parts, "chat_id": chat})
+            items_to_download.append({"final_name": base, "parts": parts, "chat_id": chat, "dest_dir": folder_path})
 
     else:
         raise HTTPException(400, "Debes especificar elementos para descargar")
 
     queue_items = []
     for idx, item in enumerate(items_to_download, 1):
+        item_dest_str = str(item.get("dest_dir", folder_path or ""))
         queue_items.append({
             "id": f"dl_{idx}_{uuid.uuid4().hex[:6]}",
             "name": item["final_name"],
@@ -1625,7 +1635,7 @@ async def start_download(
             "percent": 0,
             "speed": None,
             "eta": None,
-            "dest": str(folder_path),
+            "dest": item_dest_str,
             "error": None
         })
 
@@ -1635,7 +1645,7 @@ async def start_download(
     download_state["speed"] = None
     download_state["eta"] = None
     download_state["active"] = True
-    download_state["dest_dir"] = str(folder_path)
+    download_state["dest_dir"] = str(queue_items[0]["dest"]) if queue_items else ""
     download_state["queue"] = queue_items
 
     active_download_task = asyncio.create_task(run_download_task(default_chat or 0, items_to_download, folder_path))
