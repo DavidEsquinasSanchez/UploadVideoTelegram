@@ -475,6 +475,28 @@ button:disabled {
     min-height: 0;
 }
 
+/* Checkbox columna descargas */
+.download-check-cell {
+    text-align: center;
+    vertical-align: middle;
+    padding: 10px 4px;
+}
+
+.download-item-check,
+#checkAllDownloads {
+    width: 17px;
+    height: 17px;
+    cursor: pointer;
+    accent-color: var(--accent);
+    vertical-align: middle;
+}
+
+.download-item-check:disabled,
+#checkAllDownloads:disabled {
+    cursor: not-allowed;
+    opacity: 0.5;
+}
+
 /* Celda de progreso de descarga */
 .download-cell-name {
     display: flex;
