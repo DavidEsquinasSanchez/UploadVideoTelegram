@@ -30,6 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let uploading = false;
     let cancelRequested = false;
     const expandedTopics = new Set(); // temas desplegados en la barra lateral (clave: grupo:tema)
+    const collapsedChannels = new Set(); // canales colapsados (por defecto todos expandidos)
 
     // --------------------------------------------------------------- Elementos
     const sidebar = document.getElementById('sidebar');
@@ -291,12 +292,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         sidebarGroups.innerHTML = '';
         telegramData.forEach(grupo => {
             const folderDiv = document.createElement('div');
-            folderDiv.className = 'folder-item';
+            folderDiv.className = 'folder-item folder-collapsible';
+            const isChannelCollapsed = collapsedChannels.has(grupo.id);
+            if (!isChannelCollapsed) {
+                folderDiv.classList.add('expanded');
+            }
 
             const titleDiv = document.createElement('div');
             titleDiv.className = 'folder-title';
-            titleDiv.textContent = grupo.nombre;
+            titleDiv.tabIndex = 0;
+            titleDiv.setAttribute('role', 'button');
+            titleDiv.setAttribute('aria-expanded', String(!isChannelCollapsed));
+            titleDiv.title = 'Haz clic para comprimir o descomprimir este canal';
+
+            const toggleIcon = document.createElement('span');
+            toggleIcon.className = 'folder-toggle-icon';
+            toggleIcon.textContent = '▶';
+
+            const folderIcon = document.createElement('span');
+            folderIcon.className = 'folder-emoji';
+            folderIcon.textContent = isChannelCollapsed ? '📁' : '📂';
+
+            const titleText = document.createElement('span');
+            titleText.className = 'folder-title-text';
+            titleText.textContent = grupo.nombre;
+
+            titleDiv.append(toggleIcon, folderIcon, titleText);
             folderDiv.appendChild(titleDiv);
+
+            const toggleChannel = () => {
+                if (collapsedChannels.has(grupo.id)) {
+                    collapsedChannels.delete(grupo.id);
+                } else {
+                    collapsedChannels.add(grupo.id);
+                }
+                const nowCollapsed = collapsedChannels.has(grupo.id);
+                folderDiv.classList.toggle('expanded', !nowCollapsed);
+                titleDiv.setAttribute('aria-expanded', String(!nowCollapsed));
+                folderIcon.textContent = nowCollapsed ? '📁' : '📂';
+            };
+
+            titleDiv.addEventListener('click', toggleChannel);
+            titleDiv.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    toggleChannel();
+                }
+            });
 
             // Filtrar temas para no mostrar "General" ni id 1
             const temasFiltrados = (grupo.temas || []).filter(
