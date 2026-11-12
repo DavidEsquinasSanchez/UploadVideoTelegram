@@ -94,6 +94,7 @@
                             <!-- Botones de Envío -->
                             <div class="form-actions">
                                 <button type="button" id="btnCancelar" class="btn-cancel-upload hidden">Cancelar subida</button>
+                                <button type="button" id="btnCancelarDescarga" class="btn-cancel-upload hidden">Cancelar descarga</button>
                                 <button type="button" id="btnCrearTema" class="btn-secondary" disabled>Crear Tema</button>
                                 <button type="button" id="btnReintentar" class="btn-secondary" disabled>Reintentar</button>
                                 <button type="button" id="btnSubir" disabled>Subir Contenido</button>
@@ -102,45 +103,86 @@
                         </form>
                     </section>
 
-                    <!-- Sección de la Tabla de Archivos -->
+                    <!-- Sección de la Tabla de Archivos y Descargas -->
                     <section class="table-section">
-                        <div class="table-container">
-                            <table id="filesTable">
-                                <thead>
-                                    <tr>
-                                        <th id="thOriginal" class="sortable" data-col="originalName" style="width: 32%;" title="Haz clic para ordenar">
-                                            <div class="th-content">
-                                                <span>Título Original</span>
-                                                <span class="sort-icon"></span>
-                                            </div>
-                                            <div class="resizer" title="Arrastra para redimensionar columna"></div>
-                                        </th>
-                                        <th id="thTransformado" class="sortable" data-col="transformedName" style="width: 38%;" title="Haz clic para ordenar">
-                                            <div class="th-content">
-                                                <span>Título Transformado</span>
-                                                <span class="sort-icon"></span>
-                                            </div>
-                                            <div class="resizer" title="Arrastra para redimensionar columna"></div>
-                                        </th>
-                                        <th id="thStatus" style="width: 20%;">
-                                            <div class="th-action-inner">
-                                                <span>Estado</span>
-                                                <button type="button" id="btnDeleteOk" class="btn-icon-header" title="Eliminar Subidos OK">🗑️</button>
-                                            </div>
-                                            <div class="resizer" title="Arrastra para redimensionar columna"></div>
-                                        </th>
-                                        <th id="thDelete" style="width: 10%;">
-                                            <div class="th-action-inner">
-                                                <span>Eliminar</span>
-                                                <button type="button" id="btnDeleteAll" class="btn-icon-header" title="Eliminar todos">🗑️</button>
-                                            </div>
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody id="filesTableBody">
-                                    <!-- Las filas de archivos se añadirán aquí dinámicamente -->
-                                </tbody>
-                            </table>
+                        <!-- Pestañas de la Tabla -->
+                        <div class="table-tabs">
+                            <button type="button" id="tabUploads" class="tab-btn active">
+                                <span class="tab-icon">⬆️</span>
+                                <span class="tab-label">Subidas</span>
+                                <span id="badgeUploads" class="tab-badge">0</span>
+                            </button>
+                            <button type="button" id="tabDownloads" class="tab-btn">
+                                <span class="tab-icon">⬇️</span>
+                                <span class="tab-label">Descargas</span>
+                                <span id="badgeDownloads" class="tab-badge">0</span>
+                            </button>
+                        </div>
+
+                        <!-- Pestaña Subidas -->
+                        <div id="uploadsWrapper" class="tab-content active">
+                            <div class="table-container">
+                                <table id="filesTable">
+                                    <thead>
+                                        <tr>
+                                            <th id="thOriginal" class="sortable" data-col="originalName" style="width: 32%;" title="Haz clic para ordenar">
+                                                <div class="th-content">
+                                                    <span>Título Original</span>
+                                                    <span class="sort-icon"></span>
+                                                </div>
+                                                <div class="resizer" title="Arrastra para redimensionar columna"></div>
+                                            </th>
+                                            <th id="thTransformado" class="sortable" data-col="transformedName" style="width: 38%;" title="Haz clic para ordenar">
+                                                <div class="th-content">
+                                                    <span>Título Transformado</span>
+                                                    <span class="sort-icon"></span>
+                                                </div>
+                                                <div class="resizer" title="Arrastra para redimensionar columna"></div>
+                                            </th>
+                                            <th id="thStatus" style="width: 20%;">
+                                                <div class="th-action-inner">
+                                                    <span>Estado</span>
+                                                    <button type="button" id="btnDeleteOk" class="btn-icon-header" title="Eliminar Subidos OK">🗑️</button>
+                                                </div>
+                                                <div class="resizer" title="Arrastra para redimensionar columna"></div>
+                                            </th>
+                                            <th id="thDelete" style="width: 10%;">
+                                                <div class="th-action-inner">
+                                                    <span>Eliminar</span>
+                                                    <button type="button" id="btnDeleteAll" class="btn-icon-header" title="Eliminar todos">🗑️</button>
+                                                </div>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="filesTableBody">
+                                        <!-- Las filas de archivos se añadirán aquí dinámicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Pestaña Descargas -->
+                        <div id="downloadsWrapper" class="tab-content hidden">
+                            <div class="table-container">
+                                <table id="downloadsTable">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 38%;">Vídeo / Archivo</th>
+                                            <th style="width: 24%;">Carpeta Destino</th>
+                                            <th style="width: 28%;">Estado / Progreso</th>
+                                            <th style="width: 10%;">
+                                                <div class="th-action-inner">
+                                                    <span>Acción</span>
+                                                    <button type="button" id="btnClearCompletedDownloads" class="btn-icon-header" title="Limpiar descargas completadas">🗑️</button>
+                                                </div>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="downloadsTableBody">
+                                        <!-- Las filas de descargas se añadirán dinámicamente -->
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </section>
                 </div>

@@ -86,11 +86,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmDownloadTopic = document.getElementById('btnConfirmDownloadTopic');
     const btnCancelDownloadTopic = document.getElementById('btnCancelDownloadTopic');
 
+    const btnCancelarDescarga = document.getElementById('btnCancelarDescarga');
+    const tabUploads = document.getElementById('tabUploads');
+    const tabDownloads = document.getElementById('tabDownloads');
+    const uploadsWrapper = document.getElementById('uploadsWrapper');
+    const downloadsWrapper = document.getElementById('downloadsWrapper');
+    const badgeUploads = document.getElementById('badgeUploads');
+    const badgeDownloads = document.getElementById('badgeDownloads');
+    const downloadsTable = document.getElementById('downloadsTable');
+    const downloadsTableBody = document.getElementById('downloadsTableBody');
+    const btnClearCompletedDownloads = document.getElementById('btnClearCompletedDownloads');
+
     const DOWNLOAD_LOCKED_MSG = "Descarga en curso. Al finalizar se volverá a habilitar";
     let isDownloading = false;
     let pendingTopicDownload = null;
     let downloadPollInterval = null;
     let seenDownloadLogs = new Set();
+    let currentTab = 'uploads';
+    let downloadsList = [];
 
     // --------------------------------------------------- Menú lateral colapsable
     function toggleSidebar() {
@@ -231,8 +244,26 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function init() {
         addLog("Iniciando aplicación y cargando interfaz...", "info");
         initTableResizers();
+        renderDownloadsTable();
+        updateBadges();
         checkHealth();
         setInterval(checkHealth, HEALTH_INTERVAL_MS);
+
+        // 0) Comprobar si hay descarga en curso o cola previa
+        try {
+            const prog = await window.TelegramAPI.getDownloadProgress();
+            if (prog && (prog.active || (prog.queue && prog.queue.length > 0))) {
+                downloadsList = prog.queue || [];
+                renderDownloadsTable(prog);
+                updateBadges();
+                if (prog.active) {
+                    setDownloadLock(true);
+                    startDownloadPolling();
+                }
+            }
+        } catch (e) {
+            // Ignorar error inicial
+        }
 
         // 1) Al instante, con lo que el backend tiene guardado
         let hasCached = false;
@@ -663,6 +694,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     function setDownloadLock(locked) {
         isDownloading = locked;
 
+        if (btnCancelarDescarga) {
+            if (locked) {
+                btnCancelarDescarga.classList.remove('hidden');
+                btnCancelarDescarga.disabled = false;
+                btnCancelarDescarga.textContent = 'Cancelar descarga';
+            } else {
+                btnCancelarDescarga.classList.add('hidden');
+            }
+        }
+
         const mainButtons = [
             btnSeleccionar,
             btnSubir,
@@ -702,6 +743,211 @@ document.addEventListener('DOMContentLoaded', async () => {
             renderTable();
             renderSidebar();
         }
+        updateBadges();
+    }
+
+    // ------------------------------------------------- Pestañas y Tabla de Descargas
+    function switchTab(tab) {
+        currentTab = tab;
+        if (tab === 'uploads') {
+            if (tabUploads) tabUploads.classList.add('active');
+            if (tabDownloads) tabDownloads.classList.remove('active');
+            if (uploadsWrapper) uploadsWrapper.classList.remove('hidden');
+            if (downloadsWrapper) downloadsWrapper.classList.add('hidden');
+        } else {
+            if (tabDownloads) tabDownloads.classList.add('active');
+            if (tabUploads) tabUploads.classList.remove('active');
+            if (downloadsWrapper) downloadsWrapper.classList.remove('hidden');
+            if (uploadsWrapper) uploadsWrapper.classList.add('hidden');
+        }
+    }
+
+    if (tabUploads) tabUploads.addEventListener('click', () => switchTab('uploads'));
+    if (tabDownloads) tabDownloads.addEventListener('click', () => switchTab('downloads'));
+
+    function updateBadges() {
+        if (badgeUploads) badgeUploads.textContent = filesToUpload.length;
+        if (badgeDownloads) {
+            badgeDownloads.textContent = downloadsList.length;
+            if (isDownloading) {
+                badgeDownloads.classList.add('badge-active-pulse');
+            } else {
+                badgeDownloads.classList.remove('badge-active-pulse');
+            }
+        }
+    }
+
+    function renderDownloadsTable(prog = null) {
+        if (!downloadsTableBody) return;
+
+        if (!downloadsList || downloadsList.length === 0) {
+            downloadsTableBody.innerHTML = `
+                <tr class="empty-downloads-row">
+                    <td colspan="4" style="text-align: center; color: var(--text-muted); padding: 36px 16px;">
+                        <div style="font-size: 1.6rem; margin-bottom: 8px;">⬇️</div>
+                        <div style="font-weight: 600; font-size: 0.95rem;">No hay descargas activas ni en cola</div>
+                        <div style="font-size: 0.85rem; margin-top: 6px; opacity: 0.8;">
+                            Haz clic en el icono ⬇️ junto a cualquier tema o vídeo en el panel lateral para iniciar una descarga.
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        downloadsTableBody.innerHTML = '';
+
+        downloadsList.forEach((item, index) => {
+            const tr = document.createElement('tr');
+
+            // 1. Vídeo / Archivo
+            const tdName = document.createElement('td');
+            tdName.className = 'download-cell-name';
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'download-file-text';
+            nameSpan.textContent = item.name;
+            nameSpan.title = item.name;
+            tdName.appendChild(nameSpan);
+
+            if (item.parts > 1) {
+                const partBadge = document.createElement('span');
+                partBadge.className = 'download-part-badge';
+                partBadge.textContent = `${item.parts} partes`;
+                partBadge.title = `Archivo fraccionado en ${item.parts} partes binarias en Telegram`;
+                tdName.appendChild(partBadge);
+            }
+
+            // 2. Carpeta Destino
+            const tdDest = document.createElement('td');
+            const destSpan = document.createElement('span');
+            destSpan.className = 'download-dest-text';
+            destSpan.textContent = item.dest || '-';
+            destSpan.title = item.dest || '';
+            tdDest.appendChild(destSpan);
+
+            // 3. Estado / Progreso
+            const tdProgress = document.createElement('td');
+            const status = item.status || 'Pendiente';
+
+            if (status.startsWith('Descargando')) {
+                const container = document.createElement('div');
+                container.className = 'download-progress-cell';
+
+                const meta = document.createElement('div');
+                meta.className = 'download-progress-meta';
+
+                const statusText = document.createElement('span');
+                statusText.className = 'download-progress-status-text status-curso';
+                statusText.textContent = status;
+
+                const speedText = document.createElement('span');
+                speedText.className = 'download-progress-speed-text';
+                const speedFormatted = item.speed ? window.TelegramAPI.formatSpeed(item.speed) : '';
+                const etaFormatted = (item.eta !== null && item.eta !== undefined) ? `ETA: ${window.TelegramAPI.formatDuration(item.eta)}` : '';
+                const stats = [speedFormatted, etaFormatted].filter(Boolean).join(' · ');
+                speedText.textContent = stats;
+
+                meta.appendChild(statusText);
+                meta.appendChild(speedText);
+
+                const track = document.createElement('div');
+                track.className = 'download-bar-track';
+                const fill = document.createElement('div');
+                fill.className = 'download-bar-fill';
+                fill.style.width = `${item.percent || 0}%`;
+                track.appendChild(fill);
+
+                container.appendChild(meta);
+                container.appendChild(track);
+                tdProgress.appendChild(container);
+
+            } else if (status.startsWith('Uniendo')) {
+                const container = document.createElement('div');
+                container.className = 'download-progress-cell';
+
+                const meta = document.createElement('div');
+                meta.className = 'download-progress-meta';
+
+                const statusText = document.createElement('span');
+                statusText.className = 'download-progress-status-text status-curso';
+                statusText.textContent = `${status} ⚙️`;
+
+                meta.appendChild(statusText);
+
+                const track = document.createElement('div');
+                track.className = 'download-bar-track';
+                const fill = document.createElement('div');
+                fill.className = 'download-bar-fill status-merging';
+                track.appendChild(fill);
+
+                container.appendChild(meta);
+                container.appendChild(track);
+                tdProgress.appendChild(container);
+
+            } else if (status === 'Completado') {
+                tdProgress.innerHTML = `<span class="status-ok">Completado ✅</span>`;
+            } else if (status === 'Pendiente') {
+                tdProgress.innerHTML = `<span class="status-pendiente">En cola ⏳</span>`;
+            } else if (status === 'Cancelado') {
+                tdProgress.innerHTML = `<span class="status-cancelado">Cancelado ⚠️</span>`;
+            } else if (status === 'Error') {
+                tdProgress.innerHTML = `<span class="status-error" title="${item.error || 'Error en descarga'}">Error ❌</span>`;
+            } else {
+                tdProgress.innerHTML = `<span>${status}</span>`;
+            }
+
+            // 4. Acción
+            const tdAction = document.createElement('td');
+            tdAction.className = 'td-delete';
+            const isItemActive = status.startsWith('Descargando') || status.startsWith('Uniendo') || status === 'Pendiente';
+
+            if (!isItemActive) {
+                const btnDel = document.createElement('button');
+                btnDel.type = 'button';
+                btnDel.className = 'btn-delete-row';
+                btnDel.textContent = 'Eliminar';
+                btnDel.title = 'Eliminar de la lista';
+                btnDel.addEventListener('click', () => {
+                    downloadsList.splice(index, 1);
+                    renderDownloadsTable();
+                    updateBadges();
+                });
+                tdAction.appendChild(btnDel);
+            }
+
+            tr.append(tdName, tdDest, tdProgress, tdAction);
+            downloadsTableBody.appendChild(tr);
+        });
+    }
+
+    if (btnCancelarDescarga) {
+        btnCancelarDescarga.addEventListener('click', async () => {
+            btnCancelarDescarga.disabled = true;
+            btnCancelarDescarga.textContent = 'Cancelando descarga...';
+            addLog('Cancelando descarga en curso...', 'warning');
+            try {
+                await window.TelegramAPI.cancelDownload();
+            } catch (e) {
+                addLog(`Error al cancelar descarga: ${e.message}`, 'error');
+            }
+        });
+    }
+
+    if (btnClearCompletedDownloads) {
+        btnClearCompletedDownloads.addEventListener('click', async () => {
+            try {
+                await window.TelegramAPI.clearDownloads();
+                downloadsList = downloadsList.filter(item => {
+                    const s = item.status || '';
+                    return s.startsWith('Descargando') || s.startsWith('Uniendo') || s === 'Pendiente';
+                });
+                renderDownloadsTable();
+                updateBadges();
+                addLog('Descargas completadas eliminadas de la lista.', 'info');
+            } catch (e) {
+                addLog(`Error al limpiar descargas: ${e.message}`, 'error');
+            }
+        });
     }
 
     async function triggerVideoDownload(chatId, topicId, videoName) {
@@ -713,6 +959,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
                 return;
             }
+            switchTab('downloads');
             setDownloadLock(true);
             addLog(`Iniciando descarga de '${videoName}' en '${folder}'...`, 'info');
             await window.TelegramAPI.startDownload(chatId, topicId, videoName, folder);
@@ -732,6 +979,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 addLog('Descarga cancelada: no se seleccionó ninguna carpeta.', 'warning');
                 return;
             }
+            switchTab('downloads');
             setDownloadLock(true);
             addLog(`Iniciando descarga de todos los vídeos de '${topicName}' en '${folder}'...`, 'info');
             await window.TelegramAPI.startDownload(chatId, topicId, null, folder);
@@ -751,6 +999,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const prog = await window.TelegramAPI.getDownloadProgress();
                 if (!prog) return;
 
+                if (prog.queue && Array.isArray(prog.queue)) {
+                    downloadsList = prog.queue;
+                    renderDownloadsTable(prog);
+                    updateBadges();
+                }
+
                 if (prog.logs && Array.isArray(prog.logs)) {
                     prog.logs.forEach(l => {
                         const logKey = `${l.ts}_${l.msg}`;
@@ -765,6 +1019,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     clearInterval(downloadPollInterval);
                     downloadPollInterval = null;
                     setDownloadLock(false);
+                    renderDownloadsTable(prog);
+                    updateBadges();
                     if (prog.error) {
                         addLog(`Descarga finalizada con error: ${prog.error}`, 'error');
                     }
@@ -772,7 +1028,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             } catch (e) {
                 // Errores temporales de red/sondeo
             }
-        }, 1000);
+        }, 750);
     }
 
     // ------------------------------------------------- Nombres de episodio/serie
@@ -1225,6 +1481,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             filesTableBody.appendChild(tr);
         });
         updateSortIcons();
+        updateBadges();
     }
 
     function updateRowStatus(id, newStatus) {

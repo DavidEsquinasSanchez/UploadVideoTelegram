@@ -396,6 +396,188 @@ button:disabled {
     min-width: 0;
 }
 
+/* Pestañas de Tabla (Subidas / Descargas) */
+.table-tabs {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 8px 12px 0 12px;
+    background-color: rgba(0, 0, 0, 0.2);
+    border-bottom: 1px solid var(--border);
+    user-select: none;
+    flex-shrink: 0;
+}
+
+.tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    border-radius: 6px 6px 0 0;
+    transition: all 0.2s ease;
+    margin-bottom: -1px;
+}
+
+.tab-btn:hover {
+    color: var(--text-main);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+    color: var(--accent);
+    border-bottom: 2px solid var(--accent);
+    background-color: rgba(59, 130, 246, 0.08);
+}
+
+.tab-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    border-radius: 9px;
+    background-color: var(--border);
+    color: var(--text-main);
+}
+
+.tab-btn.active .tab-badge {
+    background-color: var(--accent);
+    color: #ffffff;
+}
+
+.tab-badge.badge-active-pulse {
+    background-color: #f59e0b;
+    color: #0f172a;
+    animation: tab-pulse 1.8s infinite;
+}
+
+@keyframes tab-pulse {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.6); }
+    70% { transform: scale(1.08); box-shadow: 0 0 0 6px rgba(245, 158, 11, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+}
+
+.tab-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    min-height: 0;
+}
+
+/* Celda de progreso de descarga */
+.download-cell-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.download-file-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.download-part-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background-color: rgba(59, 130, 246, 0.18);
+    color: #93c5fd;
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    flex-shrink: 0;
+    font-weight: 600;
+}
+
+.download-dest-text {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-family: monospace;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    display: block;
+}
+
+.download-progress-cell {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.download-progress-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.8rem;
+}
+
+.download-progress-status-text {
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 60%;
+}
+
+.download-progress-speed-text {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    text-align: right;
+}
+
+.download-bar-track {
+    width: 100%;
+    height: 7px;
+    background-color: rgba(255, 255, 255, 0.08);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.download-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #3b82f6, #60a5fa);
+    border-radius: 4px;
+    transition: width 0.25s ease-out;
+}
+
+.download-bar-fill.status-ok {
+    background: var(--success);
+}
+
+.download-bar-fill.status-error {
+    background: var(--error);
+}
+
+.download-bar-fill.status-merging {
+    background: linear-gradient(90deg, #8b5cf6, #c084fc);
+    width: 100% !important;
+    animation: bar-stripes 1.5s linear infinite;
+}
+
+@keyframes bar-stripes {
+    0% { opacity: 0.6; }
+    50% { opacity: 1; }
+    100% { opacity: 0.6; }
+}
+
 .table-container {
     flex: 1;
     overflow-y: auto;
