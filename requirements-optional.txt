@@ -1,0 +1,2 @@
+# Opcional: acelera el cifrado de Telethon. Si no hay versión para tu Python, la herramienta funciona igual.
+cryptg>=0.5

@@ -1,0 +1,28 @@
+# Entorno virtual y Python
+.venv/
+__pycache__/
+*.pyc
+requirements.lock
+
+# Credenciales y variables de entorno
+.env
+*.env
+
+# Sesiones de Telegram (archivos de autenticacion MTProto)
+*.session
+*.session-journal
+backend/*.session
+backend/*.session-journal
+
+# Datos dinamicos, temporales y logs
+topics_cache.json
+backend/topics_cache.json
+*.tmp
+backend/*.tmp
+backend/temp_uploads/
+backend/logs/
+
+# Configuracion de editor / IDE
+.vscode/
+.idea/
+

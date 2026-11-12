@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NigroServer - Telegram Uploader</title>
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Cabecera Superior Principal -->
+        <header class="top-header">
+            <div class="top-header-left">
+                <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">◀</button>
+                <h1 class="brand-title">NigroServer</h1>
+                <button type="button" id="btnRefresh" class="btn-refresh" title="Recargar página">🔄</button>
+            </div>
+            <div class="top-header-right">
+                <div class="conn-line" title="Estado de la conexión con el backend y con Telegram">
+                    <span id="connDot" class="conn-dot conn-unknown"></span>
+                    <span id="connText">Comprobando conexión...</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="app-body">
+            <!-- Panel Lateral para Grupos y Temas -->
+            <aside id="sidebar" class="sidebar">
+                <div class="sidebar-header">
+                    <span class="sidebar-title">Canales</span>
+                    <button type="button" id="btnSidebarCollapse" class="btn-sidebar-collapse" title="Comprimir menú lateral">◀</button>
+                </div>
+                <div id="sidebarGroups" class="sidebar-content">
+                    <!-- El listado de carpetas y subcarpetas se inyectará dinámicamente aquí -->
+                </div>
+            </aside>
+
+            <!-- Área Principal -->
+            <main class="main-content">
+                <div class="content-wrapper">
+                    <!-- Sección del Formulario -->
+                    <section class="form-section">
+                        <form id="uploadForm" class="upload-form">
+                            
+                            <!-- Categoría (Grupos de Telegram) -->
+                            <div class="form-group">
+                                <label for="categoria">Categoría:</label>
+                                <select id="categoria" required>
+                                    <option value="">Selecciona Categoria...</option>
+                                </select>
+                            </div>
+
+                            <!-- Contenedor dinámico si la categoría tiene temas -->
+                            <div id="temasContainer" class="hidden">
+                                
+                                <!-- Check de Serie Nueva -->
+                                <div class="form-group checkbox-group">
+                                    <input type="checkbox" id="serieNueva" disabled>
+                                    <label for="serieNueva">¿Serie nueva?</label>
+                                </div>
+
+                                <!-- SubCategoría (Temas) -->
+                                <div class="form-group" id="subcategoriaContainer">
+                                    <label for="subcategoria">SubCategoría:</label>
+                                    <select id="subcategoria">
+                                        <option value="">Selecciona subcategoria</option>
+                                    </select>
+                                </div>
+
+                                <!-- Campos para Serie Nueva (Ocultos por defecto) -->
+                                <div id="nuevaSerieContainer" class="hidden">
+                                    <div class="form-group">
+                                        <label for="nombreSerie">Nombre Serie:</label>
+                                        <input type="text" id="nombreSerie" placeholder="Ej: Agata y Lola">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="temporada">Temporada:</label>
+                                        <input type="text" id="temporada" placeholder="Ej: 1">
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            <!-- Archivo de Vídeo -->
+                            <div class="form-group video-input-group">
+                                <label for="btnSeleccionar">Seleccionar vídeo(s):</label>
+                                <div class="file-picker-row">
+                                    <button type="button" id="btnSeleccionar" class="btn-secondary" disabled>Seleccionar vídeos…</button>
+                                </div>
+                                <small class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
+                            </div>
+
+                            <!-- Botones de Envío -->
+                            <div class="form-actions">
+                                <button type="button" id="btnCancelar" class="btn-cancel-upload hidden">Cancelar subida</button>
+                                <button type="button" id="btnCrearTema" class="btn-secondary" disabled>Crear Tema</button>
+                                <button type="button" id="btnReintentar" class="btn-secondary" disabled>Reintentar</button>
+                                <button type="button" id="btnSubir" disabled>Subir Contenido</button>
+                            </div>
+
+                        </form>
+                    </section>
+
+                    <!-- Sección de la Tabla de Archivos -->
+                    <section class="table-section">
+                        <div class="table-container">
+                            <table id="filesTable">
+                                <thead>
+                                    <tr>
+                                        <th id="thOriginal" class="sortable" data-col="originalName" style="width: 32%;" title="Haz clic para ordenar">
+                                            <div class="th-content">
+                                                <span>Título Original</span>
+                                                <span class="sort-icon"></span>
+                                            </div>
+                                            <div class="resizer" title="Arrastra para redimensionar columna"></div>
+                                        </th>
+                                        <th id="thTransformado" class="sortable" data-col="transformedName" style="width: 38%;" title="Haz clic para ordenar">
+                                            <div class="th-content">
+                                                <span>Título Transformado</span>
+                                                <span class="sort-icon"></span>
+                                            </div>
+                                            <div class="resizer" title="Arrastra para redimensionar columna"></div>
+                                        </th>
+                                        <th id="thStatus" style="width: 20%;">
+                                            <div class="th-action-inner">
+                                                <span>Estado</span>
+                                                <button type="button" id="btnDeleteOk" class="btn-icon-header" title="Eliminar Subidos OK">🗑️</button>
+                                            </div>
+                                            <div class="resizer" title="Arrastra para redimensionar columna"></div>
+                                        </th>
+                                        <th id="thDelete" style="width: 10%;">
+                                            <div class="th-action-inner">
+                                                <span>Eliminar</span>
+                                                <button type="button" id="btnDeleteAll" class="btn-icon-header" title="Eliminar todos">🗑️</button>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="filesTableBody">
+                                    <!-- Las filas de archivos se añadirán aquí dinámicamente -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
+                </div>
+
+                <!-- Sección de Log -->
+                <section id="logSection" class="log-section">
+                    <div class="log-header">
+                        <div id="logToggleTitle" class="log-title-clickable" title="Haz clic para alternar entre mostrar y ocultar el Log de Actividad">
+                            <h3>Log de Actividad</h3>
+                            <span id="logToggleIcon" class="log-toggle-icon">▼</span>
+                        </div>
+                        <button type="button" id="btnClearLog" class="btn-clear">Limpiar Log</button>
+                    </div>
+                    <div id="logConsole" class="log-console">
+                        <!-- Los mensajes de log aparecerán aquí -->
+                    </div>
+                </section>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Modales -->
+    <div id="deleteModal" class="modal hidden">
+        <div class="modal-content">
+            <p>¿Estás seguro de eliminarlo?</p>
+            <div class="modal-actions">
+                <button id="btnConfirmDelete" class="btn-confirm">Sí</button>
+                <button id="btnCancelDelete" class="btn-cancel">No</button>
+            </div>
+        </div>
+    </div>
+    <div id="deleteAllModal" class="modal hidden">
+        <div class="modal-content">
+            <p>¿Estás seguro de eliminar todos los elementos?</p>
+            <div class="modal-actions">
+                <button id="btnConfirmDeleteAll" class="btn-confirm">Sí</button>
+                <button id="btnCancelDeleteAll" class="btn-cancel">No</button>
+            </div>
+        </div>
+    </div>
+    <div id="deleteOkModal" class="modal hidden">
+        <div class="modal-content">
+            <p>¿Esta seguro de eliminar todos los elementos?</p>
+            <div class="modal-actions">
+                <button id="btnConfirmDeleteOk" class="btn-confirm">Sí</button>
+                <button id="btnCancelDeleteOk" class="btn-cancel">No</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="js/telegram.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
