@@ -106,11 +106,39 @@
 
                         <!-- Vista de Descargas: Los 3 botones del formulario de descargas -->
                         <div id="downloadViewControls" class="hidden">
-                            <div class="upload-form">
+                            <div class="upload-form download-controls-card">
+                                <div class="download-panel-header">
+                                    <div class="download-panel-title-row">
+                                        <span class="download-panel-badge-icon">⬇️</span>
+                                        <h3 class="download-panel-heading">Centro de Descargas</h3>
+                                    </div>
+                                    <p class="download-panel-description">Gestiona tus descargas. Selecciona los vídeos desde la tabla o desde el explorador de canales.</p>
+                                </div>
                                 <div class="form-actions download-form-actions" style="margin-top: 0;">
-                                    <button type="button" id="btnCancelarDescarga" class="btn-cancel-upload" disabled>Cancelar subida</button>
-                                    <button type="button" id="btnReintentarDescarga" class="btn-secondary" disabled>Reintentar</button>
-                                    <button type="button" id="btnDescargarContenido" disabled>Descargar contenido</button>
+                                    <button type="button" id="btnDescargarContenido" class="btn-download-primary" disabled>
+                                        <span class="btn-icon">⬇️</span>
+                                        <span class="btn-text">Descargar contenido</span>
+                                    </button>
+                                    <div class="download-secondary-group">
+                                        <button type="button" id="btnReintentarDescarga" class="btn-secondary btn-download-sub" disabled>
+                                            <span class="btn-icon">🔄</span>
+                                            <span class="btn-text">Reintentar</span>
+                                        </button>
+                                        <button type="button" id="btnCancelarDescarga" class="btn-cancel-upload btn-download-sub" disabled>
+                                            <span class="btn-icon">⏹️</span>
+                                            <span class="btn-text">Cancelar</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="download-hints">
+                                    <div class="download-hint-item">
+                                        <span class="hint-bullet">•</span>
+                                        <span>Marca las casillas en la tabla para descargar los vídeos seleccionados.</span>
+                                    </div>
+                                    <div class="download-hint-item">
+                                        <span class="hint-bullet">•</span>
+                                        <span>Usa el icono ⬇️ en el menú lateral para añadir temas enteros.</span>
+                                    </div>
                                 </div>
                             </div>
                         </div>
