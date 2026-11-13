@@ -77,6 +77,12 @@ const TelegramAPI = {
         return await response.json();
     },
 
+    async detectChannels() {
+        const response = await apiFetch('/channels/detect', { method: 'POST' });
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
     async addChannel(channelInput) {
         const formData = new FormData();
         formData.append('channelInput', channelInput);
