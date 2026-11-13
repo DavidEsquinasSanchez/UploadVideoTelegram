@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NigroServer - Telegram Uploader</title>
+    <title>TeleVault - Telegram Uploader</title>
     <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
@@ -13,7 +13,7 @@
         <header class="top-header">
             <div class="top-header-left">
                 <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">◀</button>
-                <h1 class="brand-title">NigroServer</h1>
+                <h1 class="brand-title">TeleVault</h1>
                 <button type="button" id="btnRefresh" class="btn-refresh" title="Recargar página">🔄</button>
             </div>
             <div class="top-header-right">
@@ -29,10 +29,19 @@
             <aside id="sidebar" class="sidebar">
                 <div class="sidebar-header">
                     <span class="sidebar-title">Canales</span>
-                    <button type="button" id="btnSidebarCollapse" class="btn-sidebar-collapse" title="Comprimir menú lateral">◀</button>
+                    <div class="sidebar-header-actions">
+                        <button type="button" id="btnAddChannelQuick" class="btn-sidebar-icon" title="Añadir nuevo canal de Telegram">➕</button>
+                        <button type="button" id="btnManageChannels" class="btn-sidebar-icon" title="Gestionar canales">⚙️</button>
+                        <button type="button" id="btnSidebarCollapse" class="btn-sidebar-collapse" title="Comprimir menú lateral">◀</button>
+                    </div>
                 </div>
                 <div id="sidebarGroups" class="sidebar-content">
                     <!-- El listado de carpetas y subcarpetas se inyectará dinámicamente aquí -->
+                </div>
+                <div class="sidebar-footer">
+                    <button type="button" id="btnSidebarAddChannelFooter" class="btn-sidebar-add-footer" title="Añadir nuevo canal o grupo">
+                        <span>➕</span> Añadir canal...
+                    </button>
                 </div>
             </aside>
 
@@ -293,6 +302,54 @@
             <div class="modal-actions">
                 <button id="btnConfirmDownloadTopic" class="btn-confirm" style="background-color: var(--primary);">Descargar todos</button>
                 <button id="btnCancelDownloadTopic" class="btn-cancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Gestión de Canales -->
+    <div id="channelsModal" class="modal hidden">
+        <div class="modal-content modal-channels-content">
+            <div class="modal-channels-header">
+                <h3>⚙️ Gestión de Canales</h3>
+                <button type="button" id="btnCloseChannelsModal" class="btn-modal-close" title="Cerrar">✕</button>
+            </div>
+            
+            <div class="modal-channels-body">
+                <!-- Formulario Añadir Canal -->
+                <div class="channel-add-card">
+                    <label for="inputNewChannel" class="channel-add-label">Añadir canal o grupo de Telegram:</label>
+                    <div class="channel-add-row">
+                        <input type="text" id="inputNewChannel" class="channel-add-input" placeholder="Enlace (t.me/+...), @usuario o ID (-100...)">
+                        <button type="button" id="btnSubmitAddChannel" class="btn-channel-add-submit">
+                            <span>➕</span> Añadir
+                        </button>
+                    </div>
+                    <p class="channel-add-hint">
+                        💡 <strong>Importante:</strong> Añade al bot <strong id="modalBotName">@tu_bot</strong> como <strong>Administrador</strong> en el canal para que pueda gestionar archivos y temas.
+                    </p>
+                    <div id="channelAddFeedback" class="channel-feedback hidden"></div>
+                </div>
+
+                <!-- Lista de Canales -->
+                <div class="channels-section-title">
+                    <h4>Canales registrados (<span id="channelsCount">0</span>)</h4>
+                    <button type="button" id="btnRefreshChannelsList" class="btn-channels-reload" title="Actualizar lista">🔄</button>
+                </div>
+
+                <div id="channelsListContainer" class="channels-list">
+                    <!-- Filas inyectadas por JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de confirmación para eliminar canal -->
+    <div id="deleteChannelModal" class="modal hidden">
+        <div class="modal-content">
+            <p id="deleteChannelModalText">¿Estás seguro de que deseas eliminar este canal?</p>
+            <div class="modal-actions">
+                <button id="btnConfirmDeleteChannel" class="btn-confirm">Sí, eliminar</button>
+                <button id="btnCancelDeleteChannel" class="btn-cancel">Cancelar</button>
             </div>
         </div>
     </div>

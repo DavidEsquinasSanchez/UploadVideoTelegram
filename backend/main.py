@@ -1,5 +1,5 @@
 """
-NigroServer - Telegram Uploader (backend + servidor del frontend).
+TeleVault - Telegram Uploader (backend + servidor del frontend).
 
 Un solo proceso y un solo puerto: FastAPI sirve la interfaz (index.html, css, js,
 images) y la API (/api/...). Arranque: iniciar.bat (o `python backend/main.py`).
@@ -28,7 +28,8 @@ from fastapi import FastAPI, Form, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
-from telethon import TelegramClient, errors, functions, types
+from telethon import TelegramClient, errors, functions, types, utils
+from telethon.tl.functions.messages import CheckChatInviteRequest
 
 from parallel_upload import UploadState, upload_file_parallel
 
@@ -61,7 +62,8 @@ API_HASH = os.getenv("TG_API_HASH", "")
 BOT_TOKEN = os.getenv("TG_BOT_TOKEN", "")
 SESSION_NAME = "nigroserver_session"
 
-TARGET_CHANNELS = [
+# Canales de Telegram por defecto (se migran a channels.json)
+DEFAULT_CHANNELS = [
     -1004433458655,
     -1003975241498
 ]
@@ -89,6 +91,7 @@ DATA_DIR = Path(os.getenv("NIGRO_DATA_DIR", BASE_DIR))
 FRONTEND_DIR = Path(os.getenv("NIGRO_FRONTEND_DIR", BASE_DIR.parent))
 LOG_DIR = DATA_DIR / "logs"
 CACHE_FILE = DATA_DIR / "topics_cache.json"
+CHANNELS_FILE = DATA_DIR / "channels.json"
 SESSION_PATH = str(DATA_DIR / SESSION_NAME)
 TEMP_DIR = DATA_DIR / "temp_uploads"
 SPLIT_THRESHOLD_BYTES = 1950 * 1024 * 1024  # 1950 MB (margen de seguridad para Telegram Free / Bot)
@@ -407,6 +410,152 @@ def read_cached(chat_key: str):
 
 
 # ---------------------------------------------------------------------------
+# GESTIÓN DINÁMICA DE CANALES (channels.json)
+# ---------------------------------------------------------------------------
+def init_channels_file():
+    """Crea channels.json si no existe, migrando los canales por defecto o existentes en caché."""
+    if CHANNELS_FILE.is_file():
+        return
+    cache = load_cache()
+    channels = []
+    for cid in DEFAULT_CHANNELS:
+        entry = cache.get(str(cid), {})
+        title = entry.get("title") or ("NigroServer - Series" if cid == -1004433458655 else "NigroServer - Peliculas")
+        forum = entry.get("forum", False) if "forum" in entry else (cid == -1004433458655)
+        channels.append({
+            "id": cid,
+            "title": title,
+            "forum": bool(forum),
+            "visible": True,
+            "added_at": int(time.time())
+        })
+    save_channels(channels)
+
+
+def load_channels() -> list:
+    """Devuelve la lista de diccionarios de canales desde channels.json."""
+    if not CHANNELS_FILE.is_file():
+        init_channels_file()
+    try:
+        with open(CHANNELS_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("channels", [])
+    except Exception as e:
+        log.warning("No se pudo leer %s: %s", CHANNELS_FILE, public_error(e))
+        return []
+
+
+def save_channels(channels: list) -> None:
+    """Guarda de forma atómica la lista de canales en channels.json."""
+    tmp = CHANNELS_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump({"version": 1, "channels": channels}, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, CHANNELS_FILE)
+
+
+def get_target_channels(visible_only: bool = True) -> list:
+    """Devuelve los IDs numéricos de los canales configurados."""
+    channels = load_channels()
+    if visible_only:
+        return [int(c["id"]) for c in channels if c.get("visible", True)]
+    return [int(c["id"]) for c in channels]
+
+
+async def resolve_channel_input(raw_input: str):
+    """
+    Resuelve un enlace de invitación (t.me/+...), un username (@canal o t.me/canal)
+    o un ID numérico (-100...) verificando el acceso del bot con Telethon.
+    Devuelve (cid: int, title: str, forum: bool).
+    """
+    raw_input = (raw_input or "").strip()
+    if not raw_input:
+        raise HTTPException(400, "Debes introducir un enlace, nombre o ID de canal")
+
+    if not client or not client.is_connected():
+        raise HTTPException(503, "El cliente de Telegram no está conectado todavía")
+
+    bot_hint = f"@{bot_username}" if bot_username else "tu bot"
+
+    # 1. Enlace de invitación (t.me/+... o t.me/joinchat/...)
+    invite_match = re.search(r"(?:t\.me\/(?:\+|joinchat\/))([A-Za-z0-9_-]+)", raw_input)
+    if invite_match:
+        hash_str = invite_match.group(1)
+        try:
+            res = await client(CheckChatInviteRequest(hash_str))
+            if hasattr(res, "chat") and res.chat:
+                chat = res.chat
+                cid = utils.get_peer_id(chat)
+                title = getattr(chat, "title", raw_input)
+                forum = bool(getattr(chat, "forum", False))
+                return cid, title, forum
+            else:
+                title = getattr(res, "title", "Canal de Telegram")
+                raise HTTPException(
+                    400,
+                    f"Canal detectado ('{title}'), pero el bot {bot_hint} aún no es miembro. "
+                    f"Añade al bot como Administrador en Telegram antes de registrarlo."
+                )
+        except HTTPException:
+            raise
+        except Exception as e:
+            err_str = str(e)
+            if "INVITE_HASH_EXPIRED" in err_str:
+                raise HTTPException(400, "El enlace de invitación ha caducado")
+            elif "INVITE_HASH_INVALID" in err_str:
+                raise HTTPException(400, "El enlace de invitación no es válido")
+            log.warning("Fallo al resolver invite hash %s: %s", hash_str, public_error(e))
+            raise HTTPException(400, f"Error al comprobar el enlace: {public_error(e)}")
+
+    # 2. ID numérico directo (ej: -1004433458655 o t.me/c/4433458655/...)
+    clean_id = raw_input
+    if "t.me/c/" in clean_id:
+        m = re.search(r"t\.me\/c\/(\d+)", clean_id)
+        if m:
+            clean_id = f"-100{m.group(1)}"
+
+    if re.match(r"^-?\d+$", clean_id):
+        int_id = int(clean_id)
+        candidates = [int_id]
+        if not str(int_id).startswith("-100"):
+            candidates.append(int(f"-100{abs(int_id)}"))
+        for candidate in candidates:
+            try:
+                entity = await client.get_entity(candidate)
+                cid = utils.get_peer_id(entity)
+                title = getattr(entity, "title", str(cid))
+                forum = bool(getattr(entity, "forum", False))
+                return cid, title, forum
+            except Exception:
+                continue
+        raise HTTPException(
+            400,
+            f"No se pudo acceder al canal con ID {clean_id}. "
+            f"Asegúrate de que {bot_hint} esté añadido como Administrador en ese canal."
+        )
+
+    # 3. Username (@canal o https://t.me/canal)
+    username = raw_input
+    if "t.me/" in username:
+        username = username.split("t.me/")[-1].split("/")[0].replace("@", "").strip()
+    else:
+        username = username.replace("@", "").strip()
+
+    try:
+        entity = await client.get_entity(username)
+        cid = utils.get_peer_id(entity)
+        title = getattr(entity, "title", username)
+        forum = bool(getattr(entity, "forum", False))
+        return cid, title, forum
+    except Exception as e:
+        log.warning("Fallo al resolver username %s: %s", username, public_error(e))
+        raise HTTPException(
+            400,
+            f"No se pudo acceder a '@{username}'. "
+            f"Verifica el nombre y comprueba que el bot {bot_hint} sea Administrador del canal."
+        )
+
+
+# ---------------------------------------------------------------------------
 # UTILIDADES DE MENSAJES
 # ---------------------------------------------------------------------------
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".webm", ".m4v", ".wmv", ".flv", ".ts")
@@ -693,7 +842,8 @@ async def load_group(identifier, rescan: bool = False):
 
 
 async def refresh_all(rescan: bool = False) -> list:
-    results = await asyncio.gather(*[load_group(i, rescan) for i in TARGET_CHANNELS])
+    targets = get_target_channels(visible_only=True)
+    results = await asyncio.gather(*[load_group(i, rescan) for i in targets])
     return [g for g in results if g and g.get("nombre", "").strip().lower() != "general"]
 
 
@@ -732,7 +882,8 @@ def validate_chat(chat_id: str) -> int:
         chat = int(chat_id)
     except (TypeError, ValueError):
         raise HTTPException(400, "Canal no válido")
-    if chat not in TARGET_CHANNELS:
+    valid_channels = get_target_channels(visible_only=False)
+    if chat not in valid_channels:
         raise HTTPException(403, "Canal no permitido")
     return chat
 
@@ -981,7 +1132,8 @@ async def get_groups(rescan: bool = False, scan: bool = True):
     rescan=true -> escaneo completo de mensajes (ignora la caché de vídeos)
     """
     if not scan:
-        groups = await asyncio.gather(*[group_from_cache(i) for i in TARGET_CHANNELS])
+        targets = get_target_channels(visible_only=True)
+        groups = await asyncio.gather(*[group_from_cache(i) for i in targets])
         return [g for g in groups if g and g.get("nombre", "").strip().lower() != "general"]
     return await run_refresh(rescan)
 
@@ -1054,6 +1206,92 @@ async def select_files():
                 "originalBase": name_no_ext,
             })
     return files
+
+
+@app.get("/api/channels")
+async def get_channels_api():
+    """Devuelve la lista de canales configurados y el usuario del bot."""
+    return {
+        "bot": bot_username,
+        "channels": load_channels()
+    }
+
+
+@app.post("/api/channels/add")
+async def add_channel_api(channelInput: str = Form(...)):
+    """Añade un canal por enlace, username o ID tras validar permisos en Telegram."""
+    cid, title, forum = await resolve_channel_input(channelInput)
+    channels = load_channels()
+    for c in channels:
+        if c["id"] == cid:
+            if not c.get("visible", True):
+                c["visible"] = True
+                save_channels(channels)
+                asyncio.create_task(load_group(cid, rescan=True))
+                return {"ok": True, "channel": c, "message": f"Canal '{title}' reactivado correctamente."}
+            return {"ok": False, "channel": c, "message": f"El canal '{title}' ya está en tu lista."}
+
+    new_channel = {
+        "id": cid,
+        "title": title,
+        "forum": forum,
+        "visible": True,
+        "added_at": int(time.time())
+    }
+    channels.append(new_channel)
+    save_channels(channels)
+    asyncio.create_task(load_group(cid, rescan=True))
+    log.info("Canal añadido: %s (id=%s, foro=%s)", title, cid, forum)
+    return {"ok": True, "channel": new_channel, "message": f"Canal '{title}' añadido con éxito."}
+
+
+@app.post("/api/channels/toggle")
+async def toggle_channel_api(channelId: str = Form(...)):
+    """Activa o desactiva la visibilidad de un canal."""
+    try:
+        cid = int(channelId)
+    except ValueError:
+        raise HTTPException(400, "ID de canal no válido")
+
+    channels = load_channels()
+    target = None
+    for c in channels:
+        if c["id"] == cid:
+            target = c
+            c["visible"] = not c.get("visible", True)
+            break
+
+    if not target:
+        raise HTTPException(404, "Canal no encontrado")
+
+    save_channels(channels)
+    return {"ok": True, "channel": target}
+
+
+@app.post("/api/channels/delete")
+async def delete_channel_api(channelId: str = Form(...), purgeCache: bool = Form(False)):
+    """Elimina un canal de la configuración."""
+    try:
+        cid = int(channelId)
+    except ValueError:
+        raise HTTPException(400, "ID de canal no válido")
+
+    channels = load_channels()
+    initial_len = len(channels)
+    channels = [c for c in channels if c["id"] != cid]
+    if len(channels) == initial_len:
+        raise HTTPException(404, "Canal no encontrado")
+
+    save_channels(channels)
+
+    if purgeCache:
+        cache = load_cache()
+        if str(cid) in cache:
+            del cache[str(cid)]
+            save_cache(cache)
+
+    log.info("Canal eliminado: id=%s (purge_cache=%s)", cid, purgeCache)
+    return {"ok": True, "deleted_id": cid}
 
 
 @app.post("/api/create_topic")

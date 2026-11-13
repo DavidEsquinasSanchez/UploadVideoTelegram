@@ -39,6 +39,38 @@ async function readError(response) {
 }
 
 const TelegramAPI = {
+    // Canales dinámicos
+    async getChannels() {
+        const response = await apiFetch('/channels');
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    async addChannel(channelInput) {
+        const formData = new FormData();
+        formData.append('channelInput', channelInput);
+        const response = await apiFetch('/channels/add', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    async toggleChannel(channelId) {
+        const formData = new FormData();
+        formData.append('channelId', channelId);
+        const response = await apiFetch('/channels/toggle', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    async deleteChannel(channelId, purgeCache = false) {
+        const formData = new FormData();
+        formData.append('channelId', channelId);
+        formData.append('purgeCache', purgeCache ? 'true' : 'false');
+        const response = await apiFetch('/channels/delete', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
     // soloCache = true: respuesta instantánea con lo guardado; false: espera al escaneo de Telegram
     async getGrupos(soloCache = false) {
         if (!soloCache) addLog("Actualizando grupos, temas y vídeos desde Telegram...", "info");
@@ -46,7 +78,7 @@ const TelegramAPI = {
             const response = await apiFetch(`/groups${soloCache ? '?scan=false' : ''}`);
             if (!response.ok) throw new Error(await readError(response));
             const grupos = await response.json();
-            if (!soloCache) addLog("Grupos de NigroServer actualizados desde Telegram.", "success");
+            if (!soloCache) addLog("Grupos de TeleVault actualizados desde Telegram.", "success");
             return grupos;
         } catch (error) {
             addLog(`Error de conexión con el backend: ${error.message}`, "error");
