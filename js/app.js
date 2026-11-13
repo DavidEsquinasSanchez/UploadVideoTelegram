@@ -86,7 +86,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmDownloadTopic = document.getElementById('btnConfirmDownloadTopic');
     const btnCancelDownloadTopic = document.getElementById('btnCancelDownloadTopic');
 
-    const formSection = document.getElementById('formSection');
     const uploadViewControls = document.getElementById('uploadViewControls');
     const downloadViewControls = document.getElementById('downloadViewControls');
     const btnCancelarDescarga = document.getElementById('btnCancelarDescarga');
@@ -735,9 +734,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabDownloads) tabDownloads.classList.remove('active');
             if (uploadsWrapper) uploadsWrapper.classList.remove('hidden');
             if (downloadsWrapper) downloadsWrapper.classList.add('hidden');
-            if (formSection) formSection.classList.remove('hidden');
-            if (uploadViewControls) uploadViewControls.classList.remove('hidden');
-            if (downloadViewControls) downloadViewControls.classList.add('hidden');
             validateForm();
             checkUploadButtonState();
         } else {
@@ -745,9 +741,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (tabUploads) tabUploads.classList.remove('active');
             if (downloadsWrapper) downloadsWrapper.classList.remove('hidden');
             if (uploadsWrapper) uploadsWrapper.classList.add('hidden');
-            if (formSection) formSection.classList.add('hidden');
-            if (downloadViewControls) downloadViewControls.classList.remove('hidden');
-            if (uploadViewControls) uploadViewControls.classList.add('hidden');
             checkDownloadButtonState();
         }
     }

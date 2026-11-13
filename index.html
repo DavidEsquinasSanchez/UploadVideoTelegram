@@ -39,73 +39,7 @@
             <!-- Área Principal -->
             <main class="main-content">
                 <div class="content-wrapper">
-                    <!-- Sección del Formulario -->
-                    <section id="formSection" class="form-section">
-                        <!-- Vista de Subidas: Formulario completo de subida -->
-                        <div id="uploadViewControls">
-                            <form id="uploadForm" class="upload-form">
-                                
-                                <!-- Categoría (Grupos de Telegram) -->
-                                <div class="form-group">
-                                    <label for="categoria">Categoría:</label>
-                                    <select id="categoria" required>
-                                        <option value="">Selecciona Categoria...</option>
-                                    </select>
-                                </div>
-
-                                <!-- Contenedor dinámico si la categoría tiene temas -->
-                                <div id="temasContainer" class="hidden">
-                                    
-                                    <!-- Check de Serie Nueva -->
-                                    <div class="form-group checkbox-group">
-                                        <input type="checkbox" id="serieNueva" disabled>
-                                        <label for="serieNueva">¿Serie nueva?</label>
-                                    </div>
-
-                                    <!-- SubCategoría (Temas) -->
-                                    <div class="form-group" id="subcategoriaContainer">
-                                        <label for="subcategoria">SubCategoría:</label>
-                                        <select id="subcategoria">
-                                            <option value="">Selecciona subcategoria</option>
-                                        </select>
-                                    </div>
-
-                                    <!-- Campos para Serie Nueva (Ocultos por defecto) -->
-                                    <div id="nuevaSerieContainer" class="hidden">
-                                        <div class="form-group">
-                                            <label for="nombreSerie">Nombre Serie:</label>
-                                            <input type="text" id="nombreSerie" placeholder="Ej: Agata y Lola">
-                                        </div>
-                                        <div class="form-group">
-                                            <label for="temporada">Temporada:</label>
-                                            <input type="text" id="temporada" placeholder="Ej: 1">
-                                        </div>
-                                    </div>
-
-                                </div>
-
-                                <!-- Archivo de Vídeo -->
-                                <div class="form-group video-input-group">
-                                    <label for="btnSeleccionar">Seleccionar vídeo(s):</label>
-                                    <div class="file-picker-row">
-                                        <button type="button" id="btnSeleccionar" class="btn-secondary" disabled>Seleccionar vídeos…</button>
-                                    </div>
-                                    <small class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
-                                </div>
-
-                                <!-- Botones de Envío Subida -->
-                                <div class="form-actions">
-                                    <button type="button" id="btnCancelar" class="btn-cancel-upload hidden">Cancelar subida</button>
-                                    <button type="button" id="btnCrearTema" class="btn-secondary" disabled>Crear Tema</button>
-                                    <button type="button" id="btnReintentar" class="btn-secondary" disabled>Reintentar</button>
-                                    <button type="button" id="btnSubir" disabled>Subir Contenido</button>
-                                </div>
-
-                            </form>
-                        </div>
-                    </section>
-
-                    <!-- Sección de la Tabla de Archivos y Descargas -->
+                    <!-- Sección de la Tabla de Archivos y Descargas (Ocupa el 100% del área de trabajo) -->
                     <section class="table-section">
                         <!-- Pestañas de la Tabla -->
                         <div class="table-tabs">
@@ -123,25 +57,100 @@
 
                         <!-- Pestaña Subidas -->
                         <div id="uploadsWrapper" class="tab-content active">
+                            <!-- Barra Superior de Configuración y Acciones de Subida -->
+                            <div id="uploadViewControls" class="upload-toolbar-wrapper">
+                                <form id="uploadForm" class="upload-toolbar" onsubmit="return false;">
+                                    
+                                    <!-- Fila 1: Destino en Telegram -->
+                                    <div class="upload-toolbar-row upload-row-destination">
+                                        <div class="toolbar-item">
+                                            <label for="categoria" class="toolbar-label">
+                                                <span class="toolbar-icon">📁</span> Categoría:
+                                            </label>
+                                            <select id="categoria" class="toolbar-select" required>
+                                                <option value="">Selecciona Categoria...</option>
+                                            </select>
+                                        </div>
+
+                                        <!-- Contenedor dinámico si la categoría tiene temas -->
+                                        <div id="temasContainer" class="toolbar-group-inline hidden">
+                                            <div class="toolbar-item" id="subcategoriaContainer">
+                                                <label for="subcategoria" class="toolbar-label">
+                                                    <span class="toolbar-icon">📑</span> SubCategoría:
+                                                </label>
+                                                <select id="subcategoria" class="toolbar-select">
+                                                    <option value="">Selecciona subcategoria</option>
+                                                </select>
+                                            </div>
+
+                                            <div class="toolbar-checkbox-item">
+                                                <label class="checkbox-inline" for="serieNueva">
+                                                    <input type="checkbox" id="serieNueva" disabled>
+                                                    <span>¿Serie nueva?</span>
+                                                </label>
+                                            </div>
+
+                                            <!-- Campos para Serie Nueva (Ocultos por defecto) -->
+                                            <div id="nuevaSerieContainer" class="toolbar-group-inline hidden">
+                                                <div class="toolbar-item">
+                                                    <label for="nombreSerie" class="toolbar-label">Nombre:</label>
+                                                    <input type="text" id="nombreSerie" class="toolbar-input" placeholder="Ej: Agata y Lola">
+                                                </div>
+                                                <div class="toolbar-item">
+                                                    <label for="temporada" class="toolbar-label">Temp.:</label>
+                                                    <input type="text" id="temporada" class="toolbar-input input-short" placeholder="Ej: 1">
+                                                </div>
+                                                <button type="button" id="btnCrearTema" class="btn-secondary btn-compact" disabled title="Crear nuevo tema en el canal">
+                                                    <span class="btn-icon">➕</span> Crear Tema
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- Fila 2: Archivos y Acciones de Subida -->
+                                    <div class="upload-toolbar-row upload-row-actions">
+                                        <div class="upload-actions-left">
+                                            <button type="button" id="btnSeleccionar" class="btn-secondary btn-pick-files" disabled>
+                                                <span class="btn-icon">🎬</span> Seleccionar vídeo(s)…
+                                            </button>
+                                            <small id="helpText" class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
+                                        </div>
+
+                                        <div class="upload-actions-right">
+                                            <button type="button" id="btnCancelar" class="btn-cancel-upload btn-upload-sub hidden">
+                                                <span class="btn-icon">⏹️</span> Cancelar subida
+                                            </button>
+                                            <button type="button" id="btnReintentar" class="btn-secondary btn-upload-sub" disabled>
+                                                <span class="btn-icon">🔄</span> Reintentar
+                                            </button>
+                                            <button type="button" id="btnSubir" class="btn-upload-primary" disabled>
+                                                <span class="btn-icon">🚀</span> Subir Contenido
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                </form>
+                            </div>
+
                             <div class="table-container">
                                 <table id="filesTable">
                                     <thead>
                                         <tr>
-                                            <th id="thOriginal" class="sortable" data-col="originalName" style="min-width: 170px; width: 34%;" title="Haz clic para ordenar">
+                                            <th id="thOriginal" class="sortable" data-col="originalName" style="min-width: 220px; width: 34%;" title="Haz clic para ordenar">
                                                 <div class="th-content">
                                                     <span>Título Original</span>
                                                     <span class="sort-icon"></span>
                                                 </div>
                                                 <div class="resizer" title="Arrastra para redimensionar columna"></div>
                                             </th>
-                                            <th id="thTransformado" class="sortable" data-col="transformedName" style="min-width: 190px; width: 36%;" title="Haz clic para ordenar">
+                                            <th id="thTransformado" class="sortable" data-col="transformedName" style="min-width: 240px; width: 36%;" title="Haz clic para ordenar">
                                                 <div class="th-content">
                                                     <span>Título Transformado</span>
                                                     <span class="sort-icon"></span>
                                                 </div>
                                                 <div class="resizer" title="Arrastra para redimensionar columna"></div>
                                             </th>
-                                            <th id="thStatus" style="min-width: 130px; width: 18%;">
+                                            <th id="thStatus" style="min-width: 140px; width: 18%;">
                                                 <div class="th-action-inner">
                                                     <span>Estado</span>
                                                     <button type="button" id="btnDeleteOk" class="btn-icon-header" title="Eliminar Subidos OK">🗑️</button>
