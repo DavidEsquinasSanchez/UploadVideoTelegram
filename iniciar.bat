@@ -1,11 +1,11 @@
 @echo off
 setlocal EnableExtensions
-title NigroServer - Telegram Uploader
+title TeleVault - Telegram Uploader
 color 0a
 cd /d "%~dp0"
 
 echo ========================================================
-echo   NigroServer - Telegram Uploader
+echo   TeleVault - Telegram Uploader
 echo ========================================================
 
 set "PY=%~dp0.venv\Scripts\python.exe"

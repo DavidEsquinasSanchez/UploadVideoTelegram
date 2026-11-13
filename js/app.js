@@ -102,6 +102,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     const checkAllDownloads = document.getElementById('checkAllDownloads');
     const btnClearCompletedDownloads = document.getElementById('btnClearCompletedDownloads');
 
+    // Elementos de Gestión de Canales
+    const btnAddChannelQuick = document.getElementById('btnAddChannelQuick');
+    const btnManageChannels = document.getElementById('btnManageChannels');
+    const btnSidebarAddChannelFooter = document.getElementById('btnSidebarAddChannelFooter');
+    const channelsModal = document.getElementById('channelsModal');
+    const btnCloseChannelsModal = document.getElementById('btnCloseChannelsModal');
+    const inputNewChannel = document.getElementById('inputNewChannel');
+    const btnSubmitAddChannel = document.getElementById('btnSubmitAddChannel');
+    const modalBotName = document.getElementById('modalBotName');
+    const channelAddFeedback = document.getElementById('channelAddFeedback');
+    const channelsCount = document.getElementById('channelsCount');
+    const btnRefreshChannelsList = document.getElementById('btnRefreshChannelsList');
+    const channelsListContainer = document.getElementById('channelsListContainer');
+    const deleteChannelModal = document.getElementById('deleteChannelModal');
+    const deleteChannelModalText = document.getElementById('deleteChannelModalText');
+    const btnConfirmDeleteChannel = document.getElementById('btnConfirmDeleteChannel');
+    const btnCancelDeleteChannel = document.getElementById('btnCancelDeleteChannel');
+    let channelToDelete = null;
+
     const DOWNLOAD_LOCKED_MSG = "Descarga en curso. Al finalizar se volverá a habilitar";
     let isDownloading = false;
     let pendingTopicDownload = null;
@@ -328,6 +347,18 @@ document.addEventListener('DOMContentLoaded', async () => {
     // ------------------------------------------------------------ Barra lateral
     function renderSidebar() {
         sidebarGroups.innerHTML = '';
+        if (!telegramData || telegramData.length === 0) {
+            sidebarGroups.innerHTML = `
+                <div class="sidebar-empty">
+                    <div class="empty-icon">📁</div>
+                    <div class="empty-text">No hay canales configurados</div>
+                    <button type="button" class="btn-sidebar-add-empty" id="btnSidebarEmptyAdd">➕ Añadir canal</button>
+                </div>
+            `;
+            const btnEmpty = document.getElementById('btnSidebarEmptyAdd');
+            if (btnEmpty) btnEmpty.addEventListener('click', () => openChannelsModal(true));
+            return;
+        }
         telegramData.forEach(grupo => {
             const folderDiv = document.createElement('div');
             folderDiv.className = 'folder-item folder-collapsible';
@@ -522,6 +553,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --------------------------------------------------------------- Formulario
     function renderCategoriaOptions() {
+        if (!telegramData || telegramData.length === 0) {
+            categoriaSelect.innerHTML = '<option value="">-- No hay canales configurados --</option>';
+            return;
+        }
         categoriaSelect.innerHTML = '<option value="">Selecciona Categoria...</option>';
         telegramData.forEach(grupo => {
             const option = document.createElement('option');
@@ -2058,6 +2093,211 @@ document.addEventListener('DOMContentLoaded', async () => {
             e.returnValue = '';
         }
     });
+
+    // -------------------------------------------------- Gestión de Canales
+    function openChannelsModal(focusInput = false) {
+        if (!channelsModal) return;
+        channelsModal.classList.remove('hidden');
+        if (channelAddFeedback) {
+            channelAddFeedback.className = 'channel-feedback hidden';
+            channelAddFeedback.textContent = '';
+        }
+        loadChannelsManager();
+        if (focusInput && inputNewChannel) {
+            setTimeout(() => inputNewChannel.focus(), 100);
+        }
+    }
+
+    function closeChannelsModal() {
+        if (!channelsModal) return;
+        channelsModal.classList.add('hidden');
+    }
+
+    async function loadChannelsManager() {
+        if (!channelsListContainer) return;
+        channelsListContainer.innerHTML = '<div style="text-align:center; padding:15px; color:var(--text-muted);">Cargando canales...</div>';
+        try {
+            const data = await window.TelegramAPI.getChannels();
+            if (modalBotName && data.bot) {
+                modalBotName.textContent = `@${data.bot}`;
+            }
+            const channels = data.channels || [];
+            if (channelsCount) channelsCount.textContent = channels.length;
+
+            if (channels.length === 0) {
+                channelsListContainer.innerHTML = '<div style="text-align:center; padding:20px; color:var(--text-muted);">No tienes ningún canal registrado todavía.</div>';
+                return;
+            }
+
+            channelsListContainer.innerHTML = '';
+            channels.forEach(ch => {
+                const card = document.createElement('div');
+                card.className = `channel-card ${!ch.visible ? 'channel-hidden' : ''}`;
+
+                const left = document.createElement('div');
+                left.className = 'channel-card-left';
+
+                const icon = document.createElement('span');
+                icon.className = 'channel-card-icon';
+                icon.textContent = ch.forum ? '📂' : '📢';
+
+                const info = document.createElement('div');
+                info.className = 'channel-card-info';
+
+                const titleRow = document.createElement('div');
+                titleRow.className = 'channel-card-title-row';
+
+                const titleSpan = document.createElement('span');
+                titleSpan.className = 'channel-card-title';
+                titleSpan.textContent = ch.title;
+                titleSpan.title = ch.title;
+
+                const badge = document.createElement('span');
+                badge.className = 'channel-card-badge';
+                badge.textContent = ch.forum ? 'Foro / Temas' : 'Canal Normal';
+
+                titleRow.append(titleSpan, badge);
+
+                const meta = document.createElement('span');
+                meta.className = 'channel-card-meta';
+                meta.textContent = `ID: ${ch.id}`;
+
+                info.append(titleRow, meta);
+                left.append(icon, info);
+
+                const actions = document.createElement('div');
+                actions.className = 'channel-card-actions';
+
+                // Botón Visibilidad (Toggle)
+                const btnToggle = document.createElement('button');
+                btnToggle.type = 'button';
+                btnToggle.className = `btn-channel-toggle ${ch.visible ? 'active' : ''}`;
+                btnToggle.title = ch.visible ? 'Haz clic para ocultar de la aplicación' : 'Haz clic para mostrar en la aplicación';
+                btnToggle.innerHTML = ch.visible ? '<span>👁️</span> Visible' : '<span>👁️‍🗨️</span> Oculto';
+                btnToggle.addEventListener('click', async () => {
+                    btnToggle.disabled = true;
+                    try {
+                        await window.TelegramAPI.toggleChannel(ch.id);
+                        await loadChannelsManager();
+                        await refreshSidebar();
+                    } catch (err) {
+                        alert(`Error al cambiar visibilidad: ${err.message}`);
+                    }
+                });
+
+                // Botón Eliminar
+                const btnDelete = document.createElement('button');
+                btnDelete.type = 'button';
+                btnDelete.className = 'btn-channel-delete';
+                btnDelete.title = 'Eliminar este canal';
+                btnDelete.innerHTML = '🗑️';
+                btnDelete.addEventListener('click', () => {
+                    channelToDelete = ch;
+                    if (deleteChannelModalText) {
+                        deleteChannelModalText.textContent = `¿Estás seguro de que deseas eliminar el canal "${ch.title}"?`;
+                    }
+                    if (deleteChannelModal) deleteChannelModal.classList.remove('hidden');
+                });
+
+                actions.append(btnToggle, btnDelete);
+                card.append(left, actions);
+                channelsListContainer.appendChild(card);
+            });
+        } catch (error) {
+            channelsListContainer.innerHTML = `<div style="text-align:center; padding:15px; color:var(--error);">Error al cargar: ${error.message}</div>`;
+        }
+    }
+
+    async function handleAddChannel() {
+        if (!inputNewChannel || !btnSubmitAddChannel) return;
+        const val = inputNewChannel.value.trim();
+        if (!val) {
+            showChannelFeedback('Introduce un enlace (t.me/+...), @usuario o ID', 'error');
+            return;
+        }
+
+        btnSubmitAddChannel.disabled = true;
+        inputNewChannel.disabled = true;
+        showChannelFeedback('Verificando canal y permisos en Telegram...', 'info');
+
+        try {
+            const res = await window.TelegramAPI.addChannel(val);
+            if (res.ok) {
+                showChannelFeedback(res.message || 'Canal añadido con éxito', 'success');
+                inputNewChannel.value = '';
+                await loadChannelsManager();
+                await refreshSidebar();
+            } else {
+                showChannelFeedback(res.message || 'No se pudo añadir el canal', 'error');
+            }
+        } catch (err) {
+            showChannelFeedback(err.message || 'Error al conectar con el canal', 'error');
+        } finally {
+            btnSubmitAddChannel.disabled = false;
+            inputNewChannel.disabled = false;
+        }
+    }
+
+    function showChannelFeedback(msg, type) {
+        if (!channelAddFeedback) return;
+        channelAddFeedback.className = `channel-feedback ${type}`;
+        channelAddFeedback.textContent = msg;
+        channelAddFeedback.classList.remove('hidden');
+    }
+
+    if (btnAddChannelQuick) btnAddChannelQuick.addEventListener('click', () => openChannelsModal(true));
+    if (btnManageChannels) btnManageChannels.addEventListener('click', () => openChannelsModal(false));
+    if (btnSidebarAddChannelFooter) btnSidebarAddChannelFooter.addEventListener('click', () => openChannelsModal(true));
+    if (btnCloseChannelsModal) btnCloseChannelsModal.addEventListener('click', closeChannelsModal);
+    if (btnRefreshChannelsList) btnRefreshChannelsList.addEventListener('click', loadChannelsManager);
+    if (btnSubmitAddChannel) btnSubmitAddChannel.addEventListener('click', handleAddChannel);
+    if (inputNewChannel) {
+        inputNewChannel.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddChannel();
+            }
+        });
+    }
+
+    if (btnConfirmDeleteChannel) {
+        btnConfirmDeleteChannel.addEventListener('click', async () => {
+            if (!channelToDelete) return;
+            btnConfirmDeleteChannel.disabled = true;
+            try {
+                await window.TelegramAPI.deleteChannel(channelToDelete.id);
+                if (deleteChannelModal) deleteChannelModal.classList.add('hidden');
+                channelToDelete = null;
+                await loadChannelsManager();
+                await refreshSidebar();
+            } catch (err) {
+                alert(`Error al eliminar: ${err.message}`);
+            } finally {
+                btnConfirmDeleteChannel.disabled = false;
+            }
+        });
+    }
+
+    if (btnCancelDeleteChannel) {
+        btnCancelDeleteChannel.addEventListener('click', () => {
+            channelToDelete = null;
+            if (deleteChannelModal) deleteChannelModal.classList.add('hidden');
+        });
+    }
+
+    if (channelsModal) {
+        channelsModal.addEventListener('click', (e) => {
+            if (e.target === channelsModal) closeChannelsModal();
+        });
+    }
+    if (deleteChannelModal) {
+        deleteChannelModal.addEventListener('click', (e) => {
+            if (e.target === deleteChannelModal) {
+                channelToDelete = null;
+                deleteChannelModal.classList.add('hidden');
+            }
+        });
+    }
 
     btnClearLog.addEventListener('click', () => { logConsole.innerHTML = ''; });
 
