@@ -121,6 +121,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCancelDeleteChannel = document.getElementById('btnCancelDeleteChannel');
     let channelToDelete = null;
 
+    // Configuración del Bot y Sugerencias de Canales
+    const btnConfigBot = document.getElementById('btnConfigBot');
+    const headerBotUsername = document.getElementById('headerBotUsername');
+    const botConfigModal = document.getElementById('botConfigModal');
+    const btnCloseBotConfigModal = document.getElementById('btnCloseBotConfigModal');
+    const inputBotToken = document.getElementById('inputBotToken');
+    const btnToggleBotTokenVis = document.getElementById('btnToggleBotTokenVis');
+    const inputApiId = document.getElementById('inputApiId');
+    const inputApiHash = document.getElementById('inputApiHash');
+    const botConfigFeedback = document.getElementById('botConfigFeedback');
+    const btnSaveBotConfig = document.getElementById('btnSaveBotConfig');
+    const btnCancelBotConfig = document.getElementById('btnCancelBotConfig');
+    const channelSuggestionsDropdown = document.getElementById('channelSuggestionsDropdown');
+    let knownChannelsList = [];
+    let checkChannelDebounceTimer = null;
+    let selectedChannelToVerify = null;
+
     const DOWNLOAD_LOCKED_MSG = "Descarga en curso. Al finalizar se volverá a habilitar";
     let isDownloading = false;
     let pendingTopicDownload = null;
@@ -256,9 +273,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function checkHealth() {
         try {
             const h = await window.TelegramAPI.health();
-            if (!h.telegram) setConn('error', 'Telegram desconectado');
-            else if (h.scanning) setConn('busy', 'Actualizando temas y vídeos...');
-            else setConn('ok', h.bot ? `Conectado (@${h.bot})` : 'Conectado');
+            if (h.bot) {
+                if (headerBotUsername) headerBotUsername.textContent = `@${h.bot}`;
+                if (modalBotName) modalBotName.textContent = `@${h.bot}`;
+            } else {
+                if (headerBotUsername) headerBotUsername.textContent = 'Configurar Bot';
+            }
+
+            if (!h.configured) {
+                setConn('error', 'Bot no configurado');
+            } else if (!h.telegram) {
+                setConn('error', 'Telegram desconectado');
+            } else if (h.scanning) {
+                setConn('busy', 'Actualizando temas y vídeos...');
+            } else {
+                setConn('ok', h.bot ? `Conectado (@${h.bot})` : 'Conectado');
+            }
         } catch (error) {
             setConn('error', error.status === 401 ? 'Sesión caducada: recarga (F5)' : 'Sin conexión con el backend');
         }
@@ -2095,12 +2125,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // -------------------------------------------------- Gestión de Canales
-    function openChannelsModal(focusInput = false) {
+    async function openChannelsModal(focusInput = false) {
         if (!channelsModal) return;
         channelsModal.classList.remove('hidden');
         if (channelAddFeedback) {
             channelAddFeedback.className = 'channel-feedback hidden';
             channelAddFeedback.textContent = '';
+        }
+        if (inputNewChannel) inputNewChannel.value = '';
+        if (btnSubmitAddChannel) {
+            btnSubmitAddChannel.disabled = true;
+            btnSubmitAddChannel.title = 'Introduce un canal válido donde el bot sea Administrador';
+        }
+        if (channelSuggestionsDropdown) {
+            channelSuggestionsDropdown.classList.add('hidden');
+            channelSuggestionsDropdown.innerHTML = '';
+        }
+        try {
+            const res = await window.TelegramAPI.getKnownChannels();
+            knownChannelsList = res.channels || [];
+        } catch (e) {
+            knownChannelsList = [];
         }
         loadChannelsManager();
         if (focusInput && inputNewChannel) {
@@ -2111,6 +2156,103 @@ document.addEventListener('DOMContentLoaded', async () => {
     function closeChannelsModal() {
         if (!channelsModal) return;
         channelsModal.classList.add('hidden');
+        if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
+    }
+
+    function renderChannelSuggestions(filterText) {
+        if (!channelSuggestionsDropdown) return;
+        const q = (filterText || '').toLowerCase().trim();
+        if (!q) {
+            channelSuggestionsDropdown.classList.add('hidden');
+            channelSuggestionsDropdown.innerHTML = '';
+            return;
+        }
+
+        const matches = knownChannelsList.filter(c =>
+            (c.title && c.title.toLowerCase().includes(q)) || String(c.id).includes(q)
+        );
+
+        if (matches.length === 0) {
+            channelSuggestionsDropdown.classList.add('hidden');
+            channelSuggestionsDropdown.innerHTML = '';
+            return;
+        }
+
+        channelSuggestionsDropdown.innerHTML = '';
+        matches.slice(0, 6).forEach(c => {
+            const item = document.createElement('div');
+            item.className = 'channel-suggestion-item';
+
+            const left = document.createElement('div');
+            left.className = 'suggestion-left';
+
+            const icon = document.createElement('span');
+            icon.className = 'suggestion-icon';
+            icon.textContent = c.forum ? '📂' : '📢';
+
+            const text = document.createElement('div');
+            text.className = 'suggestion-text';
+
+            const title = document.createElement('span');
+            title.className = 'suggestion-title';
+
+            const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+            title.innerHTML = c.title.replace(regex, '<mark>$1</mark>');
+
+            const idSpan = document.createElement('span');
+            idSpan.className = 'suggestion-id';
+            idSpan.textContent = `ID: ${c.id}`;
+
+            text.append(title, idSpan);
+            left.append(icon, text);
+
+            const badge = document.createElement('span');
+            badge.className = 'suggestion-badge';
+            badge.textContent = c.is_added ? (c.visible ? 'Activo' : 'Oculto') : 'En caché';
+
+            item.append(left, badge);
+
+            item.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                selectChannelSuggestion(c);
+            });
+
+            channelSuggestionsDropdown.appendChild(item);
+        });
+
+        channelSuggestionsDropdown.classList.remove('hidden');
+    }
+
+    function selectChannelSuggestion(c) {
+        if (!inputNewChannel) return;
+        inputNewChannel.value = c.title;
+        if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
+        verifyChannelAdmin(c.id);
+    }
+
+    async function verifyChannelAdmin(channelInput) {
+        if (!channelInput || !btnSubmitAddChannel) return;
+        btnSubmitAddChannel.disabled = true;
+        showChannelFeedback('Comprobando permisos del bot en Telegram...', 'info');
+
+        try {
+            const res = await window.TelegramAPI.checkChannel(channelInput);
+            if (res.is_admin) {
+                btnSubmitAddChannel.disabled = false;
+                btnSubmitAddChannel.title = 'Añadir canal';
+                const botName = res.bot_username ? `@${res.bot_username}` : 'el bot';
+                showChannelFeedback(`✔ Canal verificado: el bot ${botName} es Administrador.`, 'success');
+            } else {
+                btnSubmitAddChannel.disabled = true;
+                btnSubmitAddChannel.title = 'El bot no es Administrador';
+                const botName = res.bot_username ? `@${res.bot_username}` : 'el bot';
+                const errMsg = res.error || `El canal elegido no tiene al bot (${botName}) añadido como Administrador.`;
+                showChannelFeedback(errMsg, 'error');
+            }
+        } catch (err) {
+            btnSubmitAddChannel.disabled = true;
+            showChannelFeedback(err.message || 'No se pudo verificar el canal', 'error');
+        }
     }
 
     async function loadChannelsManager() {
@@ -2209,7 +2351,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     async function handleAddChannel() {
-        if (!inputNewChannel || !btnSubmitAddChannel) return;
+        if (!inputNewChannel || !btnSubmitAddChannel || btnSubmitAddChannel.disabled) return;
         const val = inputNewChannel.value.trim();
         if (!val) {
             showChannelFeedback('Introduce un enlace (t.me/+...), @usuario o ID', 'error');
@@ -2218,13 +2360,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         btnSubmitAddChannel.disabled = true;
         inputNewChannel.disabled = true;
-        showChannelFeedback('Verificando canal y permisos en Telegram...', 'info');
+        showChannelFeedback('Verificando y guardando canal en Telegram...', 'info');
 
         try {
             const res = await window.TelegramAPI.addChannel(val);
             if (res.ok) {
                 showChannelFeedback(res.message || 'Canal añadido con éxito', 'success');
                 inputNewChannel.value = '';
+                if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
                 await loadChannelsManager();
                 await refreshSidebar();
             } else {
@@ -2245,20 +2388,135 @@ document.addEventListener('DOMContentLoaded', async () => {
         channelAddFeedback.classList.remove('hidden');
     }
 
+    // -------------------------------------------------- Configuración del Bot
+    function openBotConfigModal() {
+        if (!botConfigModal) return;
+        botConfigModal.classList.remove('hidden');
+        if (botConfigFeedback) {
+            botConfigFeedback.className = 'channel-feedback hidden';
+            botConfigFeedback.textContent = '';
+        }
+        loadBotConfigData();
+    }
+
+    function closeBotConfigModal() {
+        if (!botConfigModal) return;
+        botConfigModal.classList.add('hidden');
+    }
+
+    async function loadBotConfigData() {
+        try {
+            const cfg = await window.TelegramAPI.getBotConfig();
+            if (inputBotToken && cfg.token_preview) {
+                inputBotToken.placeholder = `Token actual: ${cfg.token_preview}`;
+            }
+            if (inputApiId && cfg.api_id) {
+                inputApiId.value = cfg.api_id;
+            }
+        } catch (e) {
+            // Ignorar
+        }
+    }
+
+    async function saveBotConfigHandler() {
+        if (!inputBotToken || !btnSaveBotConfig) return;
+        const token = inputBotToken.value.trim();
+        if (!token) {
+            showBotFeedback('Debes introducir el Token del Bot proporcionado por @BotFather', 'error');
+            return;
+        }
+
+        btnSaveBotConfig.disabled = true;
+        showBotFeedback('Conectando con Telegram y verificando bot...', 'info');
+
+        try {
+            const apiId = inputApiId ? inputApiId.value.trim() : null;
+            const apiHash = inputApiHash ? inputApiHash.value.trim() : null;
+            const res = await window.TelegramAPI.setBotConfig(token, apiId, apiHash);
+            if (res.ok) {
+                showBotFeedback(`✔ Conectado exitosamente como @${res.bot}`, 'success');
+                if (headerBotUsername) headerBotUsername.textContent = `@${res.bot}`;
+                if (modalBotName) modalBotName.textContent = `@${res.bot}`;
+                inputBotToken.value = '';
+                setTimeout(() => {
+                    closeBotConfigModal();
+                    checkHealth();
+                    refreshSidebar();
+                }, 1200);
+            } else {
+                showBotFeedback(res.message || 'No se pudo configurar el bot', 'error');
+            }
+        } catch (err) {
+            showBotFeedback(err.message || 'Error al conectar con Telegram', 'error');
+        } finally {
+            btnSaveBotConfig.disabled = false;
+        }
+    }
+
+    function showBotFeedback(msg, type) {
+        if (!botConfigFeedback) return;
+        botConfigFeedback.className = `channel-feedback ${type}`;
+        botConfigFeedback.textContent = msg;
+        botConfigFeedback.classList.remove('hidden');
+    }
+
+    if (btnConfigBot) btnConfigBot.addEventListener('click', openBotConfigModal);
+    if (btnCloseBotConfigModal) btnCloseBotConfigModal.addEventListener('click', closeBotConfigModal);
+    if (btnCancelBotConfig) btnCancelBotConfig.addEventListener('click', closeBotConfigModal);
+    if (btnSaveBotConfig) btnSaveBotConfig.addEventListener('click', saveBotConfigHandler);
+    if (btnToggleBotTokenVis && inputBotToken) {
+        btnToggleBotTokenVis.addEventListener('click', () => {
+            inputBotToken.type = inputBotToken.type === 'password' ? 'text' : 'password';
+            btnToggleBotTokenVis.textContent = inputBotToken.type === 'password' ? '👁️' : '🙈';
+        });
+    }
+
     if (btnAddChannelQuick) btnAddChannelQuick.addEventListener('click', () => openChannelsModal(true));
     if (btnManageChannels) btnManageChannels.addEventListener('click', () => openChannelsModal(false));
     if (btnSidebarAddChannelFooter) btnSidebarAddChannelFooter.addEventListener('click', () => openChannelsModal(true));
     if (btnCloseChannelsModal) btnCloseChannelsModal.addEventListener('click', closeChannelsModal);
     if (btnRefreshChannelsList) btnRefreshChannelsList.addEventListener('click', loadChannelsManager);
     if (btnSubmitAddChannel) btnSubmitAddChannel.addEventListener('click', handleAddChannel);
+
     if (inputNewChannel) {
+        inputNewChannel.addEventListener('input', () => {
+            const val = inputNewChannel.value;
+            renderChannelSuggestions(val);
+            if (btnSubmitAddChannel) btnSubmitAddChannel.disabled = true;
+
+            clearTimeout(checkChannelDebounceTimer);
+            const trimmed = val.trim();
+            if (trimmed.startsWith('-100') || trimmed.startsWith('@') || trimmed.includes('t.me/')) {
+                checkChannelDebounceTimer = setTimeout(() => {
+                    verifyChannelAdmin(trimmed);
+                }, 500);
+            }
+        });
+
+        inputNewChannel.addEventListener('focus', () => {
+            if (inputNewChannel.value.trim()) {
+                renderChannelSuggestions(inputNewChannel.value);
+            }
+        });
+
         inputNewChannel.addEventListener('keydown', (e) => {
             if (e.key === 'Enter') {
                 e.preventDefault();
-                handleAddChannel();
+                if (!btnSubmitAddChannel.disabled) {
+                    handleAddChannel();
+                } else if (inputNewChannel.value.trim()) {
+                    verifyChannelAdmin(inputNewChannel.value.trim());
+                }
             }
         });
     }
+
+    // Ocultar sugerencias al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (channelSuggestionsDropdown && !channelSuggestionsDropdown.contains(e.target) && e.target !== inputNewChannel) {
+            channelSuggestionsDropdown.classList.add('hidden');
+        }
+    });
 
     if (btnConfirmDeleteChannel) {
         btnConfirmDeleteChannel.addEventListener('click', async () => {
@@ -2288,6 +2546,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (channelsModal) {
         channelsModal.addEventListener('click', (e) => {
             if (e.target === channelsModal) closeChannelsModal();
+        });
+    }
+    if (botConfigModal) {
+        botConfigModal.addEventListener('click', (e) => {
+            if (e.target === botConfigModal) closeBotConfigModal();
         });
     }
     if (deleteChannelModal) {
