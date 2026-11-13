@@ -14,15 +14,12 @@
             <div class="top-header-left">
                 <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">◀</button>
                 <h1 class="brand-title">TeleVault</h1>
-                <button type="button" id="btnRefresh" class="btn-refresh" title="Recargar página">🔄</button>
-                <button type="button" id="btnToggleTheme" class="btn-theme-toggle" title="Cambiar a modo claro / oscuro">🌙</button>
-                <button type="button" id="btnAboutProject" class="btn-header-about" title="Acerca de TeleVault, repositorio y contacto">❗</button>
+                <button type="button" id="btnRefresh" class="btn-header-icon" title="Recargar página">🔄</button>
+                <button type="button" id="btnToggleTheme" class="btn-header-icon" title="Cambiar a modo claro / oscuro">🌙</button>
+                <button type="button" id="btnOpenGuideModal" class="btn-header-icon" title="Guía de Configuración y Uso">📖</button>
+                <button type="button" id="btnAboutProject" class="btn-header-icon" title="Acerca de TeleVault, repositorio y contacto">❗</button>
             </div>
             <div class="top-header-right">
-                <button type="button" id="btnOpenGuideModal" class="btn-header-guide" title="Guías de configuración y uso de TeleVault">
-                    <span class="guide-icon">📖</span>
-                    <span>Guía de Uso</span>
-                </button>
                 <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram">
                     <span class="bot-icon">🤖</span>
                     <span id="headerBotUsername">Configurar Bot</span>
@@ -714,31 +711,20 @@
                     </p>
                 </div>
 
-                <div class="about-cards-grid">
-                    <div class="about-card">
-                        <div class="about-card-icon">🐙</div>
-                        <div class="about-card-info">
-                            <span class="about-card-label">Repositorio Oficial en GitHub</span>
-                            <a href="https://github.com/DavidEsquinasSanchez/UploadVideoTelegram" target="_blank" rel="noopener noreferrer" class="about-link" title="Abrir repositorio en GitHub">
-                                DavidEsquinasSanchez/UploadVideoTelegram ↗
-                            </a>
+                <div class="about-action-section">
+                    <a href="https://github.com/DavidEsquinasSanchez/UploadVideoTelegram" target="_blank" rel="noopener noreferrer" class="btn-about-repo" id="btnOpenGitHubRepo" title="Abrir repositorio oficial en GitHub">
+                        <span class="about-repo-icon">🐙</span>
+                        <div class="about-repo-info">
+                            <span class="about-repo-title">Repositorio Oficial en GitHub</span>
+                            <span class="about-repo-sub">Ver código fuente, ramas y novedades del proyecto</span>
                         </div>
-                    </div>
-
-                    <div class="about-card">
-                        <div class="about-card-icon">✉️</div>
-                        <div class="about-card-info">
-                            <span class="about-card-label">Contacto y Sugerencias</span>
-                            <a href="mailto:nigromante2004@gmail.com?subject=TeleVault%20-%20Consulta%20o%20Sugerencia" class="about-link" title="Contactar por email">
-                                nigromante2004@gmail.com ✉
-                            </a>
-                        </div>
-                    </div>
+                        <span class="about-repo-arrow">↗</span>
+                    </a>
                 </div>
 
                 <div class="about-help-note">
                     <span class="about-note-icon">💬</span>
-                    <p>Si tienes cualquier duda, sugerencia de mejora, idea o incidencia, puedes contactar libremente por email o abrir una propuesta en GitHub.</p>
+                    <p>Si tienes cualquier duda, sugerencia de mejora, idea o incidencia, puedes contactar libremente por email (<a href="mailto:nigromante2004@gmail.com?subject=TeleVault%20-%20Consulta%20o%20Sugerencia" class="about-inline-link">nigromante2004@gmail.com</a>) o abrir una propuesta en <a href="https://github.com/DavidEsquinasSanchez/UploadVideoTelegram/issues" target="_blank" rel="noopener noreferrer" class="about-inline-link">GitHub</a>.</p>
                 </div>
             </div>
 
