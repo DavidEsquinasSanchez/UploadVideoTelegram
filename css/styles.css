@@ -337,7 +337,7 @@ body {
     color: var(--text-main);
     font-size: 0.88rem;
     outline: none;
-    transition: border-color 0.2s;
+    transition: border-color 0.2s, width 0.15s ease;
 }
 
 .toolbar-select:focus,
@@ -358,6 +358,12 @@ body {
 
 .toolbar-input {
     width: 140px;
+}
+
+.toolbar-input.input-series-name {
+    min-width: 200px;
+    width: 220px;
+    max-width: 420px;
 }
 
 .toolbar-input.input-short {

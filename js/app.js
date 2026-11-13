@@ -30,7 +30,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let uploading = false;
     let cancelRequested = false;
     const expandedTopics = new Set(); // temas desplegados en la barra lateral (clave: grupo:tema)
-    const collapsedChannels = new Set(); // canales colapsados (por defecto todos expandidos)
+    const expandedChannels = new Set(); // canales expandidos (por defecto todos comprimidos)
 
     // --------------------------------------------------------------- Elementos
     const sidebar = document.getElementById('sidebar');
@@ -331,8 +331,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         telegramData.forEach(grupo => {
             const folderDiv = document.createElement('div');
             folderDiv.className = 'folder-item folder-collapsible';
-            const isChannelCollapsed = collapsedChannels.has(grupo.id);
-            if (!isChannelCollapsed) {
+            const isChannelExpanded = expandedChannels.has(grupo.id);
+            if (isChannelExpanded) {
                 folderDiv.classList.add('expanded');
             }
 
@@ -340,7 +340,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             titleDiv.className = 'folder-title';
             titleDiv.tabIndex = 0;
             titleDiv.setAttribute('role', 'button');
-            titleDiv.setAttribute('aria-expanded', String(!isChannelCollapsed));
+            titleDiv.setAttribute('aria-expanded', String(isChannelExpanded));
             titleDiv.title = 'Haz clic para comprimir o descomprimir este canal';
 
             const toggleIcon = document.createElement('span');
@@ -349,7 +349,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             const folderIcon = document.createElement('span');
             folderIcon.className = 'folder-emoji';
-            folderIcon.textContent = isChannelCollapsed ? '📁' : '📂';
+            folderIcon.textContent = isChannelExpanded ? '📂' : '📁';
 
             const titleText = document.createElement('span');
             titleText.className = 'folder-title-text';
@@ -359,15 +359,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             folderDiv.appendChild(titleDiv);
 
             const toggleChannel = () => {
-                if (collapsedChannels.has(grupo.id)) {
-                    collapsedChannels.delete(grupo.id);
+                if (expandedChannels.has(grupo.id)) {
+                    expandedChannels.delete(grupo.id);
                 } else {
-                    collapsedChannels.add(grupo.id);
+                    expandedChannels.add(grupo.id);
                 }
-                const nowCollapsed = collapsedChannels.has(grupo.id);
-                folderDiv.classList.toggle('expanded', !nowCollapsed);
-                titleDiv.setAttribute('aria-expanded', String(!nowCollapsed));
-                folderIcon.textContent = nowCollapsed ? '📁' : '📂';
+                const nowExpanded = expandedChannels.has(grupo.id);
+                folderDiv.classList.toggle('expanded', nowExpanded);
+                titleDiv.setAttribute('aria-expanded', String(nowExpanded));
+                folderIcon.textContent = nowExpanded ? '📂' : '📁';
             };
 
             titleDiv.addEventListener('click', toggleChannel);
@@ -568,16 +568,30 @@ document.addEventListener('DOMContentLoaded', async () => {
         validateForm();
     });
 
+    function adjustSeriesInputWidth() {
+        if (!nombreSerieInput) return;
+        const len = nombreSerieInput.value.length;
+        if (len === 0) {
+            nombreSerieInput.style.width = '';
+            return;
+        }
+        // Base de 220px, se expande fluidamente según los caracteres hasta un máximo de 420px
+        const targetWidth = Math.min(420, Math.max(220, len * 9.2 + 28));
+        nombreSerieInput.style.width = `${Math.round(targetWidth)}px`;
+    }
+
     serieNuevaCheck.addEventListener('change', (e) => {
         if (e.target.checked) {
             subcategoriaContainer.classList.add('hidden');
             nuevaSerieContainer.classList.remove('hidden');
             subcategoriaSelect.value = '';
+            adjustSeriesInputWidth();
         } else {
             subcategoriaContainer.classList.remove('hidden');
             nuevaSerieContainer.classList.add('hidden');
             nombreSerieInput.value = '';
             temporadaInput.value = '';
+            adjustSeriesInputWidth();
         }
         validateForm();
     });
@@ -586,7 +600,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         validateForm();
         updatePendingTransformedNames();
     });
-    nombreSerieInput.addEventListener('input', validateForm);
+    nombreSerieInput.addEventListener('input', () => {
+        adjustSeriesInputWidth();
+        validateForm();
+    });
     temporadaInput.addEventListener('input', validateForm);
 
     // Bloquea / desbloquea el formulario mientras se sube
@@ -656,6 +673,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (grupoNuevo && !grupoNuevo.temas.some(t => t.id === result.topic.id)) {
                     grupoNuevo.temas.push({ id: result.topic.id, nombre: result.topic.nombre, videos: [] });
                 }
+                expandedChannels.add(categoryId);
                 renderSidebar();
 
                 serieNuevaCheck.checked = false;
