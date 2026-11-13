@@ -17,6 +17,10 @@
                 <button type="button" id="btnRefresh" class="btn-refresh" title="Recargar página">🔄</button>
             </div>
             <div class="top-header-right">
+                <button type="button" id="btnOpenGuideModal" class="btn-header-guide" title="Guías de configuración y uso de TeleVault">
+                    <span class="guide-icon">📖</span>
+                    <span>Guía de Uso</span>
+                </button>
                 <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram">
                     <span class="bot-icon">🤖</span>
                     <span id="headerBotUsername">Configurar Bot</span>
@@ -34,18 +38,12 @@
                 <div class="sidebar-header">
                     <span class="sidebar-title">Canales</span>
                     <div class="sidebar-header-actions">
-                        <button type="button" id="btnAddChannelQuick" class="btn-sidebar-icon" title="Añadir nuevo canal de Telegram">➕</button>
                         <button type="button" id="btnManageChannels" class="btn-sidebar-icon" title="Gestionar canales">⚙️</button>
                         <button type="button" id="btnSidebarCollapse" class="btn-sidebar-collapse" title="Comprimir menú lateral">◀</button>
                     </div>
                 </div>
                 <div id="sidebarGroups" class="sidebar-content">
                     <!-- El listado de carpetas y subcarpetas se inyectará dinámicamente aquí -->
-                </div>
-                <div class="sidebar-footer">
-                    <button type="button" id="btnSidebarAddChannelFooter" class="btn-sidebar-add-footer" title="Añadir nuevo canal o grupo">
-                        <span>➕</span> Añadir canal...
-                    </button>
                 </div>
             </aside>
 
@@ -345,6 +343,11 @@
                         <br><strong>Opción 1:</strong> Escribe cualquier mensaje en el canal (ej: <em>hola</em>) y pulsa <strong>Detectar canales del bot</strong> arriba.
                         <br><strong>Opción 2:</strong> Haz clic derecho en cualquier mensaje del canal ➔ <em>Copiar enlace</em> (ej: <code>https://t.me/c/...</code>) y pégalo aquí.
                         <br><em>Asegúrate de que <strong id="modalBotName">@tu_bot</strong> esté como <strong>Administrador</strong> en el canal.</em>
+                        <div class="channel-help-footer">
+                            <button type="button" class="btn-guide-inline" id="linkGuideFromChannels">
+                                <span>📖</span> Ver tutorial completo sobre cómo añadir el bot a canales
+                            </button>
+                        </div>
                     </div>
                     <div id="channelAddFeedback" class="channel-feedback hidden"></div>
                 </div>
@@ -390,6 +393,11 @@
                         <div class="bot-step"><span>2.</span> Envía <code>/newbot</code> y elige un nombre y usuario (ej: <em>MiUploader_bot</em>).</div>
                         <div class="bot-step"><span>3.</span> Copia el <strong>API token</strong> recibido y pégalo a continuación:</div>
                     </div>
+                    <div class="bot-help-footer">
+                        <button type="button" class="btn-guide-inline" id="linkGuideFromBot">
+                            <span>📖</span> Ver tutorial paso a paso con @BotFather y claves API
+                        </button>
+                    </div>
                 </div>
 
                 <div class="bot-form-group">
@@ -421,6 +429,262 @@
                         <span>💾</span> Guardar y Conectar
                     </button>
                     <button type="button" id="btnCancelBotConfig" class="btn-cancel">Cerrar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Guías de Uso y Configuración -->
+    <div id="guideModal" class="modal hidden">
+        <div class="modal-content modal-guide-content">
+            <div class="modal-channels-header">
+                <div class="modal-guide-title-box">
+                    <h3>📖 Guía de Configuración y Uso</h3>
+                    <p class="modal-guide-subtitle">Aprende paso a paso cómo vincular tu bot, obtener tus claves de Telegram y gestionar tus canales en TeleVault.</p>
+                </div>
+                <button type="button" id="btnCloseGuideModal" class="btn-modal-close" title="Cerrar">✕</button>
+            </div>
+            
+            <div class="modal-guide-body">
+                <div class="guide-accordion">
+                    <!-- Guía 1: @BotFather -->
+                    <div class="guide-item" id="guideItemBotFather">
+                        <button type="button" class="guide-item-header" data-target="guideContentBotFather">
+                            <div class="guide-header-left">
+                                <span class="guide-badge-num">1</span>
+                                <div class="guide-header-info">
+                                    <span class="guide-title">Crear un bot con @BotFather en Telegram</span>
+                                    <span class="guide-desc">Obtén el Token de acceso obligatorio para que TeleVault funcione</span>
+                                </div>
+                            </div>
+                            <span class="guide-chevron">▼</span>
+                        </button>
+                        <div class="guide-item-content hidden" id="guideContentBotFather">
+                            <div class="guide-callout info">
+                                <strong>💡 ¿Para qué sirve esto?</strong>
+                                <p>El bot de Telegram es el motor que TeleVault utiliza para comunicarse con los servidores de Telegram. Actúa como tu asistente automatizado para enviar vídeos, organizar temas/foros y transferir archivos de forma rápida y segura sin requerir tu sesión personal de usuario. Su <strong>HTTP API Token</strong> es la llave de acceso indispensable que autoriza a TeleVault a trabajar en tu nombre.</p>
+                            </div>
+
+                            <div class="guide-steps-list">
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">1</span>
+                                    <div class="guide-step-body">
+                                        <strong>Abre Telegram y busca al bot oficial:</strong>
+                                        <p>En el buscador de Telegram escribe <code>@BotFather</code> (asegúrate de que tenga la insignia azul de cuenta verificada oficial) o haz clic en <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer">t.me/BotFather</a>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">2</span>
+                                    <div class="guide-step-body">
+                                        <strong>Inicia la conversación:</strong>
+                                        <p>Pulsa el botón <strong>Iniciar</strong> o envía el mensaje <code>/start</code>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">3</span>
+                                    <div class="guide-step-body">
+                                        <strong>Crea el nuevo bot:</strong>
+                                        <p>Envía el comando <code>/newbot</code>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">4</span>
+                                    <div class="guide-step-body">
+                                        <strong>Asigna un nombre visible:</strong>
+                                        <p>BotFather te preguntará cómo se llamará tu bot. Escribe el nombre que prefieras (por ejemplo: <em>Mi Servidor TeleVault</em> o <em>TeleVault Bot</em>).</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">5</span>
+                                    <div class="guide-step-body">
+                                        <strong>Elige un nombre de usuario (@username):</strong>
+                                        <p>Debe ser único en todo Telegram y terminar obligatoriamente en <code>bot</code> (por ejemplo: <code>mi_televault_bot</code> o <code>TeleVault2026_bot</code>).</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">6</span>
+                                    <div class="guide-step-body">
+                                        <strong>Copia el HTTP API Token:</strong>
+                                        <p>BotFather te felicitará y te enviará un token con formato similar a: <br><code>7890123456:AAFlk9-abcdef1234567890XYZ</code>. Cópialo al portapapeles.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">7</span>
+                                    <div class="guide-step-body">
+                                        <strong>Pégalo en TeleVault:</strong>
+                                        <p>Haz clic en el botón superior <strong>🤖 Configurar Bot</strong> de TeleVault, pega el Token en la casilla y pulsa <strong>Guardar y Conectar</strong>.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="guide-action-box">
+                                <button type="button" class="btn-guide-shortcut" id="btnShortcutOpenBotConfig">
+                                    <span>🤖</span> Ir a Configurar Bot en TeleVault
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Guía 2: TG_API_ID y TG_API_HASH -->
+                    <div class="guide-item" id="guideItemApiKeys">
+                        <button type="button" class="guide-item-header" data-target="guideContentApiKeys">
+                            <div class="guide-header-left">
+                                <span class="guide-badge-num">2</span>
+                                <div class="guide-header-info">
+                                    <span class="guide-title">Crear u obtener TG_API_ID y TG_API_HASH en my.telegram.org</span>
+                                    <span class="guide-desc">Credenciales de desarrollador MTProto para descargas de alta velocidad</span>
+                                </div>
+                            </div>
+                            <span class="guide-chevron">▼</span>
+                        </button>
+                        <div class="guide-item-content hidden" id="guideContentApiKeys">
+                            <div class="guide-callout info">
+                                <strong>💡 ¿Para qué sirve esto?</strong>
+                                <p>El <code>API ID</code> y <code>API HASH</code> son credenciales de desarrollador del protocolo MTProto nativo de Telegram. Permiten a TeleVault utilizar la librería de alto rendimiento Telethon, posibilitando descargas masivas en paralelo de archivos grandes (de hasta 2 GB) a máxima velocidad y gestión avanzada de temas en foros. Aunque TeleVault incluye claves predeterminadas del sistema para funcionar directamente, configurar tus propias claves personales evita limitaciones globales de ancho de banda y garantiza máxima velocidad y estabilidad.</p>
+                            </div>
+
+                            <div class="guide-steps-list">
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">1</span>
+                                    <div class="guide-step-body">
+                                        <strong>Entra en la web oficial de Telegram:</strong>
+                                        <p>Abre tu navegador y accede a <a href="https://my.telegram.org" target="_blank" rel="noopener noreferrer">https://my.telegram.org</a>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">2</span>
+                                    <div class="guide-step-body">
+                                        <strong>Inicia sesión con tu número de teléfono:</strong>
+                                        <p>Introduce tu número incluyendo el prefijo internacional de tu país (ejemplo: <code>+34600123456</code>) y pulsa <strong>Next</strong>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">3</span>
+                                    <div class="guide-step-body">
+                                        <strong>Introduce el código de confirmación:</strong>
+                                        <p>Telegram te enviará un mensaje de servicio dentro de tu aplicación de Telegram con un código alfanumérico. Cópialo, pégalo en la página web y pulsa <strong>Sign In</strong>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">4</span>
+                                    <div class="guide-step-body">
+                                        <strong>Accede a las herramientas de desarrollo:</strong>
+                                        <p>En el menú principal de la web, haz clic sobre <strong>API development tools</strong>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">5</span>
+                                    <div class="guide-step-body">
+                                        <strong>Crea tu aplicación (solo la primera vez):</strong>
+                                        <p>Rellena el formulario con datos sencillos:
+                                        <br>• <strong>App title:</strong> <code>TeleVault</code>
+                                        <br>• <strong>Short name:</strong> <code>televault</code>
+                                        <br>• <strong>Platform:</strong> selecciona <code>Desktop</code>
+                                        <br>Luego haz clic en el botón <strong>Create application</strong>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">6</span>
+                                    <div class="guide-step-body">
+                                        <strong>Copia tus credenciales generadas:</strong>
+                                        <p>Verás en pantalla tus dos claves personales:
+                                        <br>• <strong>App api_id:</strong> un número entero (ej: <code>28495021</code>)
+                                        <br>• <strong>App api_hash:</strong> una cadena hexadecimal de 32 caracteres (ej: <code>a1b2c3d4e5f67890abcdef1234567890</code>)</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">7</span>
+                                    <div class="guide-step-body">
+                                        <strong>Guárdalas en TeleVault:</strong>
+                                        <p>Ve a <strong>🤖 Configurar Bot</strong>, despliega <em>"Opciones avanzadas (API ID / API Hash opcionales)"</em>, introduce ambos campos y pulsa <strong>Guardar y Conectar</strong>.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="guide-action-box">
+                                <button type="button" class="btn-guide-shortcut" id="btnShortcutOpenApiConfig">
+                                    <span>⚙️</span> Abrir opciones avanzadas en Configurar Bot
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Guía 3: Añadir bot a canales -->
+                    <div class="guide-item" id="guideItemChannels">
+                        <button type="button" class="guide-item-header" data-target="guideContentChannels">
+                            <div class="guide-header-left">
+                                <span class="guide-badge-num">3</span>
+                                <div class="guide-header-info">
+                                    <span class="guide-title">Añadir el bot a canales de Telegram y permisos</span>
+                                    <span class="guide-desc">Permisos necesarios para gestionar archivos, temas y vídeos</span>
+                                </div>
+                            </div>
+                            <span class="guide-chevron">▼</span>
+                        </button>
+                        <div class="guide-item-content hidden" id="guideContentChannels">
+                            <div class="guide-callout info">
+                                <strong>💡 ¿Para qué sirve esto?</strong>
+                                <p>Por motivos de privacidad y seguridad de Telegram, los bots no pueden publicar vídeos, crear foros ni leer mensajes en canales o grupos salvo que un administrador humano los añada y les otorgue permisos explícitos de <strong>Administrador</strong>. Este paso es imprescindible para que TeleVault pueda listar tus temas, subir contenido y organizar tus temporadas y películas.</p>
+                            </div>
+
+                            <div class="guide-steps-list">
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">1</span>
+                                    <div class="guide-step-body">
+                                        <strong>Abre tu canal o grupo en Telegram:</strong>
+                                        <p>Entra en el canal o grupo donde deseas que TeleVault suba o descargue contenido.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">2</span>
+                                    <div class="guide-step-body">
+                                        <strong>Abre la lista de administradores:</strong>
+                                        <p>Pulsa en el título superior del canal ➔ haz clic en editar (icono de lápiz o tres puntos) ➔ selecciona <strong>Administradores</strong> ➔ <strong>Añadir Administrador</strong>.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">3</span>
+                                    <div class="guide-step-body">
+                                        <strong>Busca y selecciona a tu bot:</strong>
+                                        <p>Escribe el <code>@username</code> de tu bot (el que creaste en el paso 1 con @BotFather) y elígelo en la lista de resultados.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">4</span>
+                                    <div class="guide-step-body">
+                                        <strong>Activa los permisos requeridos:</strong>
+                                        <p>Marca las casillas:
+                                        <br>• <strong>Publicar mensajes</strong> (Post messages)
+                                        <br>• <strong>Editar mensajes</strong> (Edit messages)
+                                        <br>• En grupos/supergrupos con temas: <strong>Gestionar temas</strong> (Manage topics)
+                                        <br>Guarda los cambios.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">5</span>
+                                    <div class="guide-step-body">
+                                        <strong>Para canales PRIVADOS (Paso muy recomendado):</strong>
+                                        <p>Como Telegram no permite a los bots inspeccionar enlaces de invitación (<code>t.me/+...</code>), para añadir un canal privado:
+                                        <br>• <strong>Método 1 (Automático):</strong> Escribe cualquier mensaje en el canal (ej: <code>hola</code>) y en TeleVault (icono ⚙️ de Canales) pulsa <strong>"🔍 Detectar canales del bot"</strong>. Aparecerá en las sugerencias listo para añadir con 1 clic.
+                                        <br>• <strong>Método 2 (Enlace directo):</strong> En Telegram, haz clic derecho sobre cualquier mensaje del canal ➔ <em>Copiar enlace del mensaje</em> (con formato <code>https://t.me/c/...</code>) y pégalo en TeleVault.</p>
+                                    </div>
+                                </div>
+                                <div class="guide-step-row">
+                                    <span class="guide-step-circle">6</span>
+                                    <div class="guide-step-body">
+                                        <strong>Para canales PÚBLICOS:</strong>
+                                        <p>Simplemente introduce <code>@nombre_del_canal</code> o pega el enlace público en TeleVault (icono ⚙️ de Canales) y pulsa <strong>➕ Añadir</strong>.</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="guide-action-box">
+                                <button type="button" class="btn-guide-shortcut" id="btnShortcutOpenChannels">
+                                    <span>⚙️</span> Abrir Gestión de Canales en TeleVault
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
