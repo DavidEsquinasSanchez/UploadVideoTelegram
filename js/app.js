@@ -2866,6 +2866,13 @@ document.addEventListener('DOMContentLoaded', async () => {
             openChannelsModal();
         });
     }
+    const btnShortcutOpenChannelsFromTopics = document.getElementById('btnShortcutOpenChannelsFromTopics');
+    if (btnShortcutOpenChannelsFromTopics) {
+        btnShortcutOpenChannelsFromTopics.addEventListener('click', () => {
+            closeGuideModal();
+            openChannelsModal();
+        });
+    }
 
     if (guideModal) {
         guideModal.addEventListener('click', (e) => {
