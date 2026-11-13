@@ -1441,7 +1441,7 @@ async def run_download_task(chat_id: int, items_to_download: list, default_dest_
 
                 if curr_queue_item:
                     curr_queue_item["name"] = final_name
-                    curr_queue_item["status"] = "Completado"
+                    curr_queue_item["status"] = "Finalizado OK"
                     curr_queue_item["percent"] = 100
                     curr_queue_item["speed"] = None
                     curr_queue_item["eta"] = None
@@ -1468,7 +1468,7 @@ async def run_download_task(chat_id: int, items_to_download: list, default_dest_
             download_state["status"] = "Finalizado con errores"
             add_download_log(f"[FIN] Descargas finalizadas con errores en {total_elapsed:.0f}s.", "warning")
         else:
-            download_state["status"] = "Completado"
+            download_state["status"] = "Finalizado OK"
             add_download_log(f"[FIN] Todas las descargas finalizadas con éxito en {total_elapsed:.0f}s.", "success")
         download_state["percent"] = 100
         download_state["speed"] = None
@@ -1480,7 +1480,7 @@ async def run_download_task(chat_id: int, items_to_download: list, default_dest_
         download_state["speed"] = None
         download_state["eta"] = None
         for it in download_state.get("queue", []):
-            if it.get("status") not in ("Completado", "Error"):
+            if it.get("status") not in ("Finalizado OK", "Completado", "Error"):
                 it["status"] = "Cancelado"
     except Exception as e:
         err_msg = public_error(e)
@@ -1490,7 +1490,7 @@ async def run_download_task(chat_id: int, items_to_download: list, default_dest_
         download_state["speed"] = None
         download_state["eta"] = None
         for it in download_state.get("queue", []):
-            if it.get("status") not in ("Completado", "Error"):
+            if it.get("status") not in ("Finalizado OK", "Completado", "Error"):
                 it["status"] = "Error"
                 it["error"] = err_msg
     finally:
@@ -1565,7 +1565,14 @@ async def start_download(
 
             if parts:
                 parts.sort(key=lambda x: natural_sort_key(x[1]))
-                items_to_download.append({"final_name": base, "parts": parts, "chat_id": c_id, "dest_dir": it_dest_path})
+                items_to_download.append({
+                    "id": it.get("id"),
+                    "final_name": base,
+                    "original_name": v_name,
+                    "parts": parts,
+                    "chat_id": c_id,
+                    "dest_dir": it_dest_path
+                })
 
         if not items_to_download:
             raise HTTPException(404, "No se encontraron vídeos válidos en Telegram para los elementos seleccionados")
@@ -1595,7 +1602,14 @@ async def start_download(
             raise HTTPException(404, f"No se encontró el vídeo '{videoName}' en Telegram")
 
         parts.sort(key=lambda x: natural_sort_key(x[1]))
-        items_to_download = [{"final_name": base, "parts": parts, "chat_id": chat, "dest_dir": folder_path}]
+        items_to_download = [{
+            "id": None,
+            "final_name": base,
+            "original_name": target_name,
+            "parts": parts,
+            "chat_id": chat,
+            "dest_dir": folder_path
+        }]
 
     # 3) Si se solicita descargar todo un tema directamente
     elif topicId is not None and chatId is not None:
@@ -1617,7 +1631,14 @@ async def start_download(
 
         for base in sorted(logical_dict.keys(), key=natural_sort_key):
             parts = sorted(logical_dict[base], key=lambda x: natural_sort_key(x[1]))
-            items_to_download.append({"final_name": base, "parts": parts, "chat_id": chat, "dest_dir": folder_path})
+            items_to_download.append({
+                "id": None,
+                "final_name": base,
+                "original_name": base,
+                "parts": parts,
+                "chat_id": chat,
+                "dest_dir": folder_path
+            })
 
     else:
         raise HTTPException(400, "Debes especificar elementos para descargar")
@@ -1626,8 +1647,9 @@ async def start_download(
     for idx, item in enumerate(items_to_download, 1):
         item_dest_str = str(item.get("dest_dir", folder_path or ""))
         queue_items.append({
-            "id": f"dl_{idx}_{uuid.uuid4().hex[:6]}",
+            "id": item.get("id") or f"dl_{idx}_{uuid.uuid4().hex[:6]}",
             "name": item["final_name"],
+            "original_name": item.get("original_name") or item["final_name"],
             "chatId": item.get("chat_id", default_chat),
             "parts": len(item["parts"]),
             "current_part": 0,

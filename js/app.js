@@ -702,7 +702,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         isDownloading = locked;
 
         if (btnCancelarDescarga) {
-            btnCancelarDescarga.textContent = 'Cancelar subida';
+            btnCancelarDescarga.innerHTML = '<span class="btn-icon">⏹️</span><span class="btn-text">Cancelar descarga</span>';
         }
 
         checkDownloadButtonState();
@@ -1076,8 +1076,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 container.appendChild(track);
                 tdProgress.appendChild(container);
 
-            } else if (status === 'Completado') {
-                tdProgress.innerHTML = `<span class="status-ok">Completado ✅</span>`;
+            } else if (status === 'Completado' || status === 'Finalizado OK') {
+                tdProgress.innerHTML = `<span class="status-ok">Finalizado OK</span>`;
             } else if (status === 'Pendiente') {
                 tdProgress.innerHTML = `<span class="status-pendiente">Pendiente</span>`;
             } else if (status === 'En cola ⏳') {
@@ -1155,12 +1155,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         setDownloadLock(true);
         renderDownloadsTable();
 
-        const itemsPayload = checkedItems.map(it => ({
-            chatId: it.chatId,
-            topicId: it.topicId,
-            videoName: it.name,
-            dest: it.dest
-        }));
+        const itemsPayload = checkedItems.map(it => {
+            if (!it.id) {
+                it.id = 'dl_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+            }
+            return {
+                id: it.id,
+                chatId: it.chatId,
+                topicId: it.topicId,
+                videoName: it.name,
+                dest: it.dest
+            };
+        });
 
         addLog(`Iniciando descarga de ${checkedItems.length} vídeo(s) hacia sus destinos asignados...`, 'info');
 
@@ -1212,7 +1218,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnCancelarDescarga.addEventListener('click', async () => {
             if (!isDownloading) return;
             btnCancelarDescarga.disabled = true;
-            btnCancelarDescarga.textContent = 'Cancelando subida...';
+            btnCancelarDescarga.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Cancelando descarga...</span>';
             addLog('Cancelando descarga en curso...', 'warning');
             try {
                 await window.TelegramAPI.cancelDownload();
@@ -1253,15 +1259,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 if (prog.queue && Array.isArray(prog.queue)) {
                     prog.queue.forEach(qItem => {
-                        const localItem = downloadsList.find(it => it.name.toLowerCase() === qItem.name.toLowerCase());
+                        const localItem = downloadsList.find(it => 
+                            (qItem.id && it.id === qItem.id) ||
+                            (qItem.original_name && it.name && it.name.toLowerCase() === qItem.original_name.toLowerCase()) ||
+                            (it.name && qItem.name && it.name.toLowerCase() === qItem.name.toLowerCase())
+                        );
                         if (localItem) {
+                            if (qItem.name && localItem.name !== qItem.name) {
+                                localItem.name = qItem.name;
+                            }
                             localItem.status = qItem.status;
                             localItem.percent = qItem.percent;
                             localItem.speed = qItem.speed;
                             localItem.eta = qItem.eta;
                             localItem.dest = qItem.dest || localItem.dest;
                             localItem.error = qItem.error;
-                            if (qItem.status === 'Completado') {
+                            if (qItem.status === 'Completado' || qItem.status === 'Finalizado OK') {
                                 localItem.checked = false;
                             }
                         }
@@ -1284,6 +1297,29 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!prog.active) {
                     clearInterval(downloadPollInterval);
                     downloadPollInterval = null;
+                    if (prog.queue && Array.isArray(prog.queue)) {
+                        prog.queue.forEach(qItem => {
+                            const localItem = downloadsList.find(it => 
+                                (qItem.id && it.id === qItem.id) ||
+                                (qItem.original_name && it.name && it.name.toLowerCase() === qItem.original_name.toLowerCase()) ||
+                                (it.name && qItem.name && it.name.toLowerCase() === qItem.name.toLowerCase())
+                            );
+                            if (localItem) {
+                                if (qItem.name && localItem.name !== qItem.name) {
+                                    localItem.name = qItem.name;
+                                }
+                                localItem.status = qItem.status;
+                                localItem.percent = qItem.percent;
+                                localItem.speed = qItem.speed;
+                                localItem.eta = qItem.eta;
+                                localItem.dest = qItem.dest || localItem.dest;
+                                localItem.error = qItem.error;
+                                if (qItem.status === 'Completado' || qItem.status === 'Finalizado OK') {
+                                    localItem.checked = false;
+                                }
+                            }
+                        });
+                    }
                     setDownloadLock(false);
                     renderDownloadsTable(prog);
                     updateBadges();
