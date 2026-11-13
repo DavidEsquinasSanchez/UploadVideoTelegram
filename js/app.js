@@ -103,9 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnClearCompletedDownloads = document.getElementById('btnClearCompletedDownloads');
 
     // Elementos de Gestión de Canales
-    const btnAddChannelQuick = document.getElementById('btnAddChannelQuick');
     const btnManageChannels = document.getElementById('btnManageChannels');
-    const btnSidebarAddChannelFooter = document.getElementById('btnSidebarAddChannelFooter');
     const channelsModal = document.getElementById('channelsModal');
     const btnCloseChannelsModal = document.getElementById('btnCloseChannelsModal');
     const inputNewChannel = document.getElementById('inputNewChannel');
@@ -2537,9 +2535,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    if (btnAddChannelQuick) btnAddChannelQuick.addEventListener('click', () => openChannelsModal(true));
     if (btnManageChannels) btnManageChannels.addEventListener('click', () => openChannelsModal(false));
-    if (btnSidebarAddChannelFooter) btnSidebarAddChannelFooter.addEventListener('click', () => openChannelsModal(true));
     if (btnCloseChannelsModal) btnCloseChannelsModal.addEventListener('click', closeChannelsModal);
     if (btnRefreshChannelsList) btnRefreshChannelsList.addEventListener('click', loadChannelsManager);
     if (btnSubmitAddChannel) btnSubmitAddChannel.addEventListener('click', handleAddChannel);
@@ -2672,6 +2668,113 @@ document.addEventListener('DOMContentLoaded', async () => {
                 channelToDelete = null;
                 deleteChannelModal.classList.add('hidden');
             }
+        });
+    }
+
+    // -------------------------------------------------- Modal de Guía de Uso y Configuración
+    const guideModal = document.getElementById('guideModal');
+    const btnOpenGuideModal = document.getElementById('btnOpenGuideModal');
+    const btnCloseGuideModal = document.getElementById('btnCloseGuideModal');
+    const linkGuideFromBot = document.getElementById('linkGuideFromBot');
+    const linkGuideFromChannels = document.getElementById('linkGuideFromChannels');
+    const btnShortcutOpenBotConfig = document.getElementById('btnShortcutOpenBotConfig');
+    const btnShortcutOpenApiConfig = document.getElementById('btnShortcutOpenApiConfig');
+    const btnShortcutOpenChannels = document.getElementById('btnShortcutOpenChannels');
+
+    function openGuideModal(openTopicId = null) {
+        if (!guideModal) return;
+        guideModal.classList.remove('hidden');
+
+        // Cerrar otros modales si estuvieran abiertos
+        if (channelsModal) channelsModal.classList.add('hidden');
+        if (botConfigModal) botConfigModal.classList.add('hidden');
+
+        const guideItems = guideModal.querySelectorAll('.guide-item');
+        guideItems.forEach(item => {
+            const content = item.querySelector('.guide-item-content');
+            if (openTopicId && item.id === openTopicId) {
+                item.classList.add('open');
+                if (content) content.classList.remove('hidden');
+                setTimeout(() => item.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 120);
+            } else if (!openTopicId) {
+                // Por defecto, abre la primera guía (BotFather) para dar una bienvenida clara
+                if (item.id === 'guideItemBotFather') {
+                    item.classList.add('open');
+                    if (content) content.classList.remove('hidden');
+                } else {
+                    item.classList.remove('open');
+                    if (content) content.classList.add('hidden');
+                }
+            } else {
+                item.classList.remove('open');
+                if (content) content.classList.add('hidden');
+            }
+        });
+    }
+
+    function closeGuideModal() {
+        if (!guideModal) return;
+        guideModal.classList.add('hidden');
+    }
+
+    // Acordeón interactivo de guías
+    const guideHeaders = document.querySelectorAll('.guide-item-header');
+    guideHeaders.forEach(header => {
+        header.addEventListener('click', () => {
+            const item = header.closest('.guide-item');
+            const targetId = header.getAttribute('data-target');
+            const content = targetId ? document.getElementById(targetId) : (item ? item.querySelector('.guide-item-content') : null);
+            if (!item || !content) return;
+
+            const isOpen = item.classList.contains('open');
+            if (isOpen) {
+                item.classList.remove('open');
+                content.classList.add('hidden');
+            } else {
+                item.classList.add('open');
+                content.classList.remove('hidden');
+            }
+        });
+    });
+
+    if (btnOpenGuideModal) btnOpenGuideModal.addEventListener('click', () => openGuideModal());
+    if (btnCloseGuideModal) btnCloseGuideModal.addEventListener('click', closeGuideModal);
+
+    // Enlaces directos cruzados
+    if (linkGuideFromBot) {
+        linkGuideFromBot.addEventListener('click', () => {
+            openGuideModal('guideItemBotFather');
+        });
+    }
+    if (linkGuideFromChannels) {
+        linkGuideFromChannels.addEventListener('click', () => {
+            openGuideModal('guideItemChannels');
+        });
+    }
+    if (btnShortcutOpenBotConfig) {
+        btnShortcutOpenBotConfig.addEventListener('click', () => {
+            closeGuideModal();
+            openBotConfigModal();
+        });
+    }
+    if (btnShortcutOpenApiConfig) {
+        btnShortcutOpenApiConfig.addEventListener('click', () => {
+            closeGuideModal();
+            openBotConfigModal();
+            const adv = document.querySelector('.bot-advanced-details');
+            if (adv) adv.open = true;
+        });
+    }
+    if (btnShortcutOpenChannels) {
+        btnShortcutOpenChannels.addEventListener('click', () => {
+            closeGuideModal();
+            openChannelsModal();
+        });
+    }
+
+    if (guideModal) {
+        guideModal.addEventListener('click', (e) => {
+            if (e.target === guideModal) closeGuideModal();
         });
     }
 
