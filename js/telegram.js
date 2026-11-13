@@ -39,9 +39,40 @@ async function readError(response) {
 }
 
 const TelegramAPI = {
+    // Configuración del bot de Telegram
+    async getBotConfig() {
+        const response = await apiFetch('/config/bot');
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    async setBotConfig(botToken, apiId = null, apiHash = null) {
+        const formData = new FormData();
+        formData.append('botToken', botToken);
+        if (apiId) formData.append('apiId', apiId);
+        if (apiHash) formData.append('apiHash', apiHash);
+        const response = await apiFetch('/config/bot', { method: 'POST', body: formData });
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
     // Canales dinámicos
     async getChannels() {
         const response = await apiFetch('/channels');
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    async getKnownChannels() {
+        const response = await apiFetch('/channels/known');
+        if (!response.ok) throw new Error(await readError(response));
+        return await response.json();
+    },
+
+    async checkChannel(channelInput) {
+        const formData = new FormData();
+        formData.append('channelInput', channelInput);
+        const response = await apiFetch('/channels/check', { method: 'POST', body: formData });
         if (!response.ok) throw new Error(await readError(response));
         return await response.json();
     },

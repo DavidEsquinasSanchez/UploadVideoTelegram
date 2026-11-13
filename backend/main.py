@@ -92,6 +92,7 @@ FRONTEND_DIR = Path(os.getenv("NIGRO_FRONTEND_DIR", BASE_DIR.parent))
 LOG_DIR = DATA_DIR / "logs"
 CACHE_FILE = DATA_DIR / "topics_cache.json"
 CHANNELS_FILE = DATA_DIR / "channels.json"
+CONFIG_FILE = DATA_DIR / "config.json"
 SESSION_PATH = str(DATA_DIR / SESSION_NAME)
 TEMP_DIR = DATA_DIR / "temp_uploads"
 SPLIT_THRESHOLD_BYTES = 1950 * 1024 * 1024  # 1950 MB (margen de seguridad para Telegram Free / Bot)
@@ -273,23 +274,37 @@ async def lifespan(app: FastAPI):
     except Exception:
         log.warning("cryptg NO está instalado: el cifrado de Telethon será más lento")
 
-    if not API_ID or not API_HASH or not BOT_TOKEN or "PON_AQUI" in API_HASH or "PON_AQUI" in BOT_TOKEN:
-        raise RuntimeError(
-            "Faltan credenciales: define TG_API_ID, TG_API_HASH y TG_BOT_TOKEN en el archivo .env.")
     if not (FRONTEND_DIR / "index.html").is_file():
         log.warning("No se encuentra %s: la interfaz no se podrá servir", FRONTEND_DIR / "index.html")
 
-    client = TelegramClient(SESSION_PATH, API_ID, API_HASH,
-                            connection_retries=10, retry_delay=2,
-                            request_retries=5, flood_sleep_threshold=120)
-    await client.start(bot_token=BOT_TOKEN)
-    me = await client.get_me()
-    bot_username = getattr(me, "username", "") or ""
-    log.info("Conectado a Telegram como bot @%s", bot_username)
-    log.info("Abre la herramienta en  http://%s:%s", HOST, PORT)
+    cfg = load_app_config()
+    cur_token = cfg.get("bot_token", "")
+    cur_api_id = int(cfg.get("api_id") or API_ID or 0)
+    cur_api_hash = cfg.get("api_hash") or API_HASH or ""
 
-    # Escaneo inicial en segundo plano: la interfaz arranca con la caché y se actualiza sola
-    refresh_task = asyncio.create_task(refresh_all(False))
+    if cur_token and cur_api_id and cur_api_hash and "PON_AQUI" not in cur_token:
+        try:
+            client = TelegramClient(SESSION_PATH, cur_api_id, cur_api_hash,
+                                    connection_retries=10, retry_delay=2,
+                                    request_retries=5, flood_sleep_threshold=120)
+            await client.start(bot_token=cur_token)
+            me = await client.get_me()
+            bot_username = getattr(me, "username", "") or ""
+            cfg["bot_username"] = bot_username
+            save_app_config(cfg)
+            log.info("Conectado a Telegram como bot @%s", bot_username)
+            # Escaneo inicial en segundo plano
+            refresh_task = asyncio.create_task(refresh_all(False))
+        except Exception as e:
+            log.error("No se pudo conectar a Telegram con el token actual: %s", public_error(e))
+            client = None
+            bot_username = ""
+    else:
+        log.warning("TeleVault iniciado sin bot configurado. Se solicitará en la interfaz web.")
+        client = None
+        bot_username = ""
+
+    log.info("Abre la herramienta en  http://%s:%s", HOST, PORT)
 
     yield
 
@@ -302,7 +317,8 @@ async def lifespan(app: FastAPI):
     all_tasks = [t for t in (refresh_task, active_download_task, *active_uploads.values()) if t]
     await asyncio.gather(*all_tasks, return_exceptions=True)
     purge_temp_dir()
-    await client.disconnect()
+    if client and client.is_connected():
+        await client.disconnect()
 
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
@@ -407,6 +423,34 @@ def read_cached(chat_key: str):
     topics = {int(k): v for k, v in entry.get("topics", {}).items()}
     videos = {k: list(v) for k, v in entry.get("videos", {}).items()}
     return topics, videos
+
+
+# ---------------------------------------------------------------------------
+# CONFIGURACIÓN PERSISTENTE (config.json)
+# ---------------------------------------------------------------------------
+def load_app_config() -> dict:
+    config = {}
+    if CONFIG_FILE.is_file():
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception as e:
+            log.warning("No se pudo leer %s: %s", CONFIG_FILE, public_error(e))
+    # Fallback a variables de entorno / .env
+    if not config.get("bot_token") and BOT_TOKEN and "PON_AQUI" not in BOT_TOKEN:
+        config["bot_token"] = BOT_TOKEN
+    if not config.get("api_id") and API_ID:
+        config["api_id"] = API_ID
+    if not config.get("api_hash") and API_HASH and "PON_AQUI" not in API_HASH:
+        config["api_hash"] = API_HASH
+    return config
+
+
+def save_app_config(cfg: dict) -> None:
+    tmp = CONFIG_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, CONFIG_FILE)
 
 
 # ---------------------------------------------------------------------------
@@ -553,6 +597,28 @@ async def resolve_channel_input(raw_input: str):
             f"No se pudo acceder a '@{username}'. "
             f"Verifica el nombre y comprueba que el bot {bot_hint} sea Administrador del canal."
         )
+
+
+async def check_bot_admin_status(entity_or_id):
+    """
+    Comprueba si el bot actual es Administrador del canal/grupo.
+    Devuelve (is_admin: bool, error_msg: Optional[str])
+    """
+    bot_hint = f"@{bot_username}" if bot_username else "tu bot"
+    if not client or not client.is_connected():
+        return False, "El cliente de Telegram no está conectado."
+
+    try:
+        perms = await client.get_permissions(entity_or_id, 'me')
+        if perms.is_admin:
+            return True, None
+        else:
+            return False, f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador."
+    except errors.UserNotParticipantError:
+        return False, f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador."
+    except Exception as e:
+        log.warning("Fallo al comprobar permisos en %s: %s", entity_or_id, public_error(e))
+        return False, f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador."
 
 
 # ---------------------------------------------------------------------------
@@ -1115,13 +1181,87 @@ async def favicon():
 
 @app.get("/api/health")
 async def health():
+    is_configured = bool(client and client.is_connected() and bot_username)
     return {
-        "ok": True,
+        "ok": is_configured,
+        "configured": is_configured,
         "telegram": bool(client and client.is_connected()),
         "bot": bot_username,
         "scanning": bool(refresh_task and not refresh_task.done()),
         "uploads": len(active_uploads),
         "uptime": int(time.time() - started_at),
+    }
+
+
+@app.get("/api/config/bot")
+async def get_bot_config():
+    """Devuelve el estado de configuración del bot."""
+    cfg = load_app_config()
+    token = cfg.get("bot_token", "")
+    masked = f"{token[:8]}...{token[-4:]}" if len(token) > 12 else ("Configurado" if token else "")
+    return {
+        "configured": bool(client and client.is_connected() and bot_username),
+        "bot": bot_username,
+        "token_preview": masked,
+        "api_id": cfg.get("api_id") or API_ID
+    }
+
+
+@app.post("/api/config/bot")
+async def set_bot_config(
+    botToken: str = Form(...),
+    apiId: Optional[str] = Form(None),
+    apiHash: Optional[str] = Form(None)
+):
+    global client, bot_username, refresh_task
+    token = botToken.strip()
+    if not token:
+        raise HTTPException(400, "Debes introducir el Token del Bot proporcionado por @BotFather")
+
+    cfg = load_app_config()
+    final_api_id = int(apiId.strip()) if (apiId and apiId.strip().isdigit()) else (int(cfg.get("api_id") or API_ID or 0))
+    final_api_hash = apiHash.strip() if (apiHash and apiHash.strip()) else (cfg.get("api_hash") or API_HASH or "")
+
+    if not final_api_id or not final_api_hash:
+        raise HTTPException(400, "Faltan credenciales API_ID y API_HASH de Telegram")
+
+    test_client = TelegramClient(SESSION_PATH, final_api_id, final_api_hash,
+                                 connection_retries=3, retry_delay=2, request_retries=3)
+    try:
+        await test_client.start(bot_token=token)
+        me = await test_client.get_me()
+        new_username = getattr(me, "username", "") or ""
+        if not new_username:
+            raise ValueError("No se pudo obtener el nombre de usuario del bot")
+    except Exception as e:
+        try:
+            await test_client.disconnect()
+        except Exception:
+            pass
+        log.warning("Fallo al validar nuevo bot token: %s", public_error(e))
+        raise HTTPException(400, f"Error al conectar con Telegram: {public_error(e)}. Verifica que el token sea correcto.")
+
+    if client and client.is_connected():
+        try:
+            await client.disconnect()
+        except Exception:
+            pass
+
+    client = test_client
+    bot_username = new_username
+
+    cfg["bot_token"] = token
+    cfg["bot_username"] = new_username
+    cfg["api_id"] = final_api_id
+    cfg["api_hash"] = final_api_hash
+    save_app_config(cfg)
+
+    refresh_task = asyncio.create_task(refresh_all(False))
+    log.info("Bot configurado con éxito: @%s", bot_username)
+    return {
+        "ok": True,
+        "bot": bot_username,
+        "message": f"Conectado exitosamente como @{bot_username}"
     }
 
 
@@ -1217,10 +1357,74 @@ async def get_channels_api():
     }
 
 
+@app.get("/api/channels/known")
+async def get_known_channels_api():
+    """Devuelve la lista de canales conocidos para autocompletado en el buscador."""
+    channels_cfg = {c["id"]: c for c in load_channels()}
+    cache = load_cache()
+
+    all_known = []
+    seen_ids = set()
+
+    for cid, c in channels_cfg.items():
+        seen_ids.add(cid)
+        all_known.append({
+            "id": str(cid),
+            "title": c.get("title", str(cid)),
+            "forum": c.get("forum", False),
+            "is_added": True,
+            "visible": c.get("visible", True)
+        })
+
+    for key, data in cache.items():
+        try:
+            cid = int(key)
+        except ValueError:
+            continue
+        if cid not in seen_ids:
+            seen_ids.add(cid)
+            title = data.get("title") or str(cid)
+            forum = data.get("forum", False)
+            all_known.append({
+                "id": str(cid),
+                "title": title,
+                "forum": bool(forum),
+                "is_added": False,
+                "visible": False
+            })
+
+    return {"channels": all_known}
+
+
+@app.post("/api/channels/check")
+async def check_channel_api(channelInput: str = Form(...)):
+    """Verifica si el canal existe y comprueba si el bot es Administrador."""
+    cid, title, forum = await resolve_channel_input(channelInput)
+    is_admin, err_msg = await check_bot_admin_status(cid)
+    bot_hint = f"@{bot_username}" if bot_username else "tu bot"
+    return {
+        "ok": is_admin,
+        "channel": {
+            "id": str(cid),
+            "title": title,
+            "forum": forum
+        },
+        "is_admin": is_admin,
+        "bot_username": bot_username,
+        "error": err_msg if not is_admin else None,
+        "message": f"Canal verificado: el bot {bot_hint} es Administrador." if is_admin else err_msg
+    }
+
+
 @app.post("/api/channels/add")
 async def add_channel_api(channelInput: str = Form(...)):
     """Añade un canal por enlace, username o ID tras validar permisos en Telegram."""
     cid, title, forum = await resolve_channel_input(channelInput)
+    is_admin, err_msg = await check_bot_admin_status(cid)
+    if not is_admin:
+        bot_hint = f"@{bot_username}" if bot_username else "tu bot"
+        raise HTTPException(400, err_msg or f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador.")
+
     channels = load_channels()
     for c in channels:
         if c["id"] == cid:

@@ -17,6 +17,10 @@
                 <button type="button" id="btnRefresh" class="btn-refresh" title="Recargar página">🔄</button>
             </div>
             <div class="top-header-right">
+                <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram">
+                    <span class="bot-icon">🤖</span>
+                    <span id="headerBotUsername">Configurar Bot</span>
+                </button>
                 <div class="conn-line" title="Estado de la conexión con el backend y con Telegram">
                     <span id="connDot" class="conn-dot conn-unknown"></span>
                     <span id="connText">Comprobando conexión...</span>
@@ -318,11 +322,15 @@
                 <!-- Formulario Añadir Canal -->
                 <div class="channel-add-card">
                     <label for="inputNewChannel" class="channel-add-label">Añadir canal o grupo de Telegram:</label>
-                    <div class="channel-add-row">
-                        <input type="text" id="inputNewChannel" class="channel-add-input" placeholder="Enlace (t.me/+...), @usuario o ID (-100...)">
-                        <button type="button" id="btnSubmitAddChannel" class="btn-channel-add-submit">
-                            <span>➕</span> Añadir
-                        </button>
+                    <div class="channel-search-wrapper">
+                        <div class="channel-add-row">
+                            <input type="text" id="inputNewChannel" class="channel-add-input" placeholder="Escribe para buscar o pega enlace (t.me/+...), @usuario o ID" autocomplete="off">
+                            <button type="button" id="btnSubmitAddChannel" class="btn-channel-add-submit" disabled title="Introduce un canal válido donde el bot sea Administrador">
+                                <span>➕</span> Añadir
+                            </button>
+                        </div>
+                        <!-- Desplegable predictivo de sugerencias -->
+                        <div id="channelSuggestionsDropdown" class="channel-suggestions hidden"></div>
                     </div>
                     <p class="channel-add-hint">
                         💡 <strong>Importante:</strong> Añade al bot <strong id="modalBotName">@tu_bot</strong> como <strong>Administrador</strong> en el canal para que pueda gestionar archivos y temas.
@@ -350,6 +358,59 @@
             <div class="modal-actions">
                 <button id="btnConfirmDeleteChannel" class="btn-confirm">Sí, eliminar</button>
                 <button id="btnCancelDeleteChannel" class="btn-cancel">Cancelar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Configuración del Bot de Telegram -->
+    <div id="botConfigModal" class="modal hidden">
+        <div class="modal-content modal-bot-content">
+            <div class="modal-channels-header">
+                <h3>🤖 Configuración del Bot de Telegram</h3>
+                <button type="button" id="btnCloseBotConfigModal" class="btn-modal-close" title="Cerrar">✕</button>
+            </div>
+            <div class="modal-bot-body">
+                <div class="bot-info-card">
+                    <p class="bot-info-desc">
+                        Para que <strong>TeleVault</strong> pueda conectarse a Telegram y gestionar tus canales, introduce el <strong>HTTP API Token</strong> de tu bot creado en <strong>@BotFather</strong>.
+                    </p>
+                    <div class="bot-steps-guide">
+                        <div class="bot-step"><span>1.</span> Abre Telegram y escribe a <strong>@BotFather</strong>.</div>
+                        <div class="bot-step"><span>2.</span> Envía <code>/newbot</code> y elige un nombre y usuario (ej: <em>MiUploader_bot</em>).</div>
+                        <div class="bot-step"><span>3.</span> Copia el <strong>API token</strong> recibido y pégalo a continuación:</div>
+                    </div>
+                </div>
+
+                <div class="bot-form-group">
+                    <label for="inputBotToken" class="channel-add-label">Token del Bot (HTTP API Token):</label>
+                    <div class="bot-input-row">
+                        <input type="password" id="inputBotToken" class="channel-add-input" placeholder="Ej: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" autocomplete="off">
+                        <button type="button" id="btnToggleBotTokenVis" class="btn-toggle-vis" title="Mostrar/Ocultar Token">👁️</button>
+                    </div>
+                </div>
+
+                <details class="bot-advanced-details">
+                    <summary>Opciones avanzadas (API ID / API Hash opcionales)</summary>
+                    <div class="bot-advanced-fields">
+                        <div class="bot-form-group">
+                            <label for="inputApiId" class="channel-add-label">TG_API_ID (opcional):</label>
+                            <input type="text" id="inputApiId" class="channel-add-input" placeholder="Predeterminado del sistema">
+                        </div>
+                        <div class="bot-form-group">
+                            <label for="inputApiHash" class="channel-add-label">TG_API_HASH (opcional):</label>
+                            <input type="password" id="inputApiHash" class="channel-add-input" placeholder="Predeterminado del sistema">
+                        </div>
+                    </div>
+                </details>
+
+                <div id="botConfigFeedback" class="channel-feedback hidden"></div>
+
+                <div class="bot-modal-actions">
+                    <button type="button" id="btnSaveBotConfig" class="btn-primary-action">
+                        <span>💾</span> Guardar y Conectar
+                    </button>
+                    <button type="button" id="btnCancelBotConfig" class="btn-cancel">Cerrar</button>
+                </div>
             </div>
         </div>
     </div>
