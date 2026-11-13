@@ -2280,7 +2280,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function selectChannelSuggestion(c) {
         if (!inputNewChannel) return;
+        selectedChannelToVerify = c;
         inputNewChannel.value = c.title || c.id;
+        inputNewChannel.dataset.channelId = String(c.id);
         if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
 
         if (c.is_added) {
@@ -2323,7 +2325,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!channelsListContainer) return;
         channelsListContainer.innerHTML = '<div style="text-align:center; padding:15px; color:var(--text-muted);">Cargando canales...</div>';
         try {
-            const data = await window.TelegramAPI.getChannels();
+            const data = await window.TelegramAPI.getChannels(true);
             if (modalBotName && data.bot) {
                 modalBotName.textContent = `@${data.bot}`;
             }
@@ -2416,7 +2418,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     async function handleAddChannel() {
         if (!inputNewChannel || !btnSubmitAddChannel || btnSubmitAddChannel.disabled) return;
-        const val = inputNewChannel.value.trim();
+        
+        // Priorizar el ID verificado del canal si proviene de una sugerencia/detección
+        const verifiedId = inputNewChannel.dataset.channelId || (selectedChannelToVerify ? String(selectedChannelToVerify.id) : null);
+        const val = (verifiedId || inputNewChannel.value).trim();
+        
         if (!val) {
             showChannelFeedback('Introduce un enlace (t.me/+...), @usuario o ID', 'error');
             return;
@@ -2431,6 +2437,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (res.ok) {
                 showChannelFeedback(res.message || 'Canal añadido con éxito', 'success');
                 inputNewChannel.value = '';
+                delete inputNewChannel.dataset.channelId;
+                selectedChannelToVerify = null;
                 if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
                 await loadChannelsManager();
                 await refreshSidebar();
@@ -2589,6 +2597,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (inputNewChannel) {
         inputNewChannel.addEventListener('input', () => {
+            delete inputNewChannel.dataset.channelId;
+            selectedChannelToVerify = null;
             const val = inputNewChannel.value;
             renderChannelSuggestions(val);
             if (btnSubmitAddChannel) btnSubmitAddChannel.disabled = true;

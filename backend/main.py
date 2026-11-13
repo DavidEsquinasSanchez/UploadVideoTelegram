@@ -542,13 +542,14 @@ def bot_api_check_admin(chat_id: int) -> tuple:
 
 
 def bot_api_detect_chats() -> list:
-    """Escanea actualizaciones recientes del bot para encontrar canales y grupos donde esté presente."""
+    """Escanea actualizaciones recientes del bot para encontrar canales y grupos donde esté presente, obteniendo siempre el título en tiempo real."""
     detected = []
     seen = set()
     try:
         data = _bot_api_call("getUpdates", {"limit": 100})
         if data.get("ok"):
-            for update in data.get("result", []):
+            # Recorrer del más reciente al más antiguo para capturar los datos más recientes
+            for update in reversed(data.get("result", [])):
                 chat = None
                 if "channel_post" in update:
                     chat = update["channel_post"].get("chat")
@@ -556,13 +557,23 @@ def bot_api_detect_chats() -> list:
                     chat = update["message"].get("chat")
                 elif "my_chat_member" in update:
                     chat = update["my_chat_member"].get("chat")
+                elif "chat_member" in update:
+                    chat = update["chat_member"].get("chat")
 
                 if chat and chat.get("id"):
                     cid = int(chat["id"])
                     if cid not in seen and chat.get("type") in ("channel", "supergroup", "group"):
                         seen.add(cid)
+                        # Consultar getChat en vivo para obtener SIEMPRE el título actual de Telegram
                         title = chat.get("title") or str(cid)
                         is_forum = bool(chat.get("is_forum", False))
+                        try:
+                            live_chat = bot_api_get_chat(cid)
+                            title = live_chat.get("title") or title
+                            is_forum = bool(live_chat.get("is_forum", is_forum))
+                        except Exception as e:
+                            log.debug("No se pudo refrescar getChat para %s: %s", cid, e)
+
                         is_admin, _ = bot_api_check_admin(cid)
                         detected.append({
                             "id": str(cid),
@@ -585,16 +596,13 @@ def get_target_channels(visible_only: bool = True) -> list:
 
 async def resolve_channel_input(raw_input: str):
     """
-    Resuelve un enlace de invitación (t.me/+...), un username (@canal o t.me/canal)
-    o un ID numérico (-100...) verificando el acceso del bot con Telethon.
+    Resuelve un enlace de invitación (t.me/+...), un ID numérico (-100...),
+    un username (@canal o t.me/canal) o el título de un canal detectado.
     Devuelve (cid: int, title: str, forum: bool).
     """
     raw_input = (raw_input or "").strip()
     if not raw_input:
         raise HTTPException(400, "Debes introducir un enlace, nombre o ID de canal")
-
-    if not client or not client.is_connected():
-        raise HTTPException(503, "El cliente de Telegram no está conectado todavía")
 
     bot_hint = f"@{bot_username}" if bot_username else "tu bot"
 
@@ -610,12 +618,16 @@ async def resolve_channel_input(raw_input: str):
             "• O escribe cualquier mensaje en el canal (ej: 'hola') y pulsa el botón '🔍 Detectar canales del bot'."
         )
 
-    # 2. ID numérico directo (ej: -1004433458655) o enlace de mensaje privado (https://t.me/c/2458901234/5)
+    # 2. Extracción de ID numérico si viene en el texto o como enlace de mensaje (https://t.me/c/2458901234/5)
     clean_id = raw_input
     if "t.me/c/" in clean_id:
         m = re.search(r"t\.me\/c\/(\d+)", clean_id)
         if m:
             clean_id = f"-100{m.group(1)}"
+    else:
+        m_id = re.search(r"(-100\d{9,})", clean_id)
+        if m_id:
+            clean_id = m_id.group(1)
 
     if re.match(r"^-?\d+$", clean_id):
         int_id = int(clean_id)
@@ -634,15 +646,16 @@ async def resolve_channel_input(raw_input: str):
             except Exception:
                 pass
 
-            # 2. Intentar con Telethon get_entity
-            try:
-                entity = await client.get_entity(candidate)
-                cid = utils.get_peer_id(entity)
-                title = getattr(entity, "title", str(cid))
-                forum = bool(getattr(entity, "forum", False))
-                return cid, title, forum
-            except Exception:
-                continue
+            # 2. Intentar con Telethon get_entity si está conectado
+            if client and client.is_connected():
+                try:
+                    entity = await client.get_entity(candidate)
+                    cid = utils.get_peer_id(entity)
+                    title = getattr(entity, "title", str(cid))
+                    forum = bool(getattr(entity, "forum", False))
+                    return cid, title, forum
+                except Exception:
+                    continue
 
         raise HTTPException(
             400,
@@ -650,7 +663,38 @@ async def resolve_channel_input(raw_input: str):
             f"Asegúrate de que {bot_hint} esté añadido como Administrador en ese canal."
         )
 
-    # 3. Username (@canal o https://t.me/canal)
+    # 3. Comprobar si coincide con el título o ID de algún canal detectado recientemente
+    try:
+        detected = bot_api_detect_chats()
+        clean_target = raw_input.strip().lower()
+        for d in detected:
+            if clean_target == d["title"].strip().lower() or clean_target == str(d["id"]):
+                cid = int(d["id"])
+                try:
+                    live_info = bot_api_get_chat(cid)
+                    title = live_info.get("title") or d["title"]
+                    forum = bool(live_info.get("is_forum", d.get("forum", False)))
+                    return cid, title, forum
+                except Exception:
+                    return cid, d["title"], bool(d.get("forum", False))
+    except Exception:
+        pass
+
+    for c in load_channels():
+        if raw_input.strip().lower() == c.get("title", "").strip().lower():
+            cid = int(c["id"])
+            try:
+                live_info = bot_api_get_chat(cid)
+                title = live_info.get("title") or c.get("title", str(cid))
+                forum = bool(live_info.get("is_forum", c.get("forum", False)))
+                return cid, title, forum
+            except Exception:
+                return cid, c.get("title", str(cid)), bool(c.get("forum", False))
+
+    # 4. Username (@canal o https://t.me/canal)
+    if not client or not client.is_connected():
+        raise HTTPException(503, "El cliente de Telegram no está conectado todavía")
+
     username = raw_input
     if "t.me/" in username:
         username = username.split("t.me/")[-1].split("/")[0].replace("@", "").strip()
@@ -955,16 +999,23 @@ def assemble_group(identifier, title, forum, topics, videos) -> dict:
 async def group_from_cache(identifier):
     key = str(identifier)
     entry = load_cache().get(key)
-    if not entry:
-        return None
-    title, forum = entry.get("title"), entry.get("forum")
-    if title is None or forum is None:       # caché de una versión anterior: se completa con Telegram
+    channels_cfg = {str(c["id"]): c for c in load_channels() if "id" in c}
+    ch_cfg = channels_cfg.get(key, {})
+
+    title = ch_cfg.get("title") or (entry.get("title") if entry else None)
+    forum = ch_cfg.get("forum") if "forum" in ch_cfg else (entry.get("forum") if entry else None)
+
+    if title is None or forum is None:
         try:
-            entity = await client.get_entity(identifier)
-            title = getattr(entity, "title", key)
-            forum = bool(getattr(entity, "forum", False))
+            live_info = bot_api_get_chat(int(identifier))
+            title = live_info.get("title", key)
+            forum = bool(live_info.get("is_forum", False))
         except Exception:
-            return None
+            if not entry:
+                return None
+            title = key
+            forum = False
+
     topics, videos = read_cached(key)
     return assemble_group(identifier, title, forum, topics, videos)
 
@@ -980,9 +1031,6 @@ async def load_group(identifier, rescan: bool = False):
         v_count = len(group.get("videos", [])) if not forum else sum(len(t["videos"]) for t in group["temas"])
         log.info("[OK] %s: foro=%s, temas=%s, vídeos=%s", title, forum, len(group["temas"]), v_count)
         return group
-    except Exception as e:
-        log.error("No se pudo resolver el canal %s: %s", identifier, public_error(e), exc_info=True)
-        return await group_from_cache(identifier)
     except Exception as e:
         log.error("No se pudo resolver el canal %s: %s", identifier, public_error(e), exc_info=True)
         return await group_from_cache(identifier)
@@ -1430,11 +1478,29 @@ async def select_files():
 
 
 @app.get("/api/channels")
-async def get_channels_api():
-    """Devuelve la lista de canales configurados y el usuario del bot."""
+async def get_channels_api(refresh: bool = False):
+    """Devuelve la lista de canales configurados y el usuario del bot, sincronizando títulos en vivo si se solicita."""
+    channels = load_channels()
+    if refresh:
+        updated = False
+        for ch in channels:
+            try:
+                cid = int(ch["id"])
+                live_info = bot_api_get_chat(cid)
+                new_title = live_info.get("title")
+                if new_title and new_title != ch.get("title"):
+                    ch["title"] = new_title
+                    updated = True
+                if "is_forum" in live_info:
+                    ch["forum"] = bool(live_info["is_forum"])
+            except Exception:
+                pass
+        if updated:
+            save_channels(channels)
+
     return {
         "bot": bot_username,
-        "channels": load_channels()
+        "channels": channels
     }
 
 
