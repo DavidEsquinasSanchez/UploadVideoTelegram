@@ -497,6 +497,84 @@ def save_channels(channels: list) -> None:
     os.replace(tmp, CHANNELS_FILE)
 
 
+def _bot_api_token() -> str:
+    cfg = load_app_config()
+    return cfg.get("bot_token") or BOT_TOKEN or ""
+
+
+def _bot_api_call(method: str, params: dict = None) -> dict:
+    token = _bot_api_token()
+    if not token:
+        raise ValueError("Token de bot no configurado")
+    url = f"https://api.telegram.org/bot{token}/{method}"
+    if params:
+        url += "?" + urllib.parse.urlencode(params)
+    req = urllib.request.Request(url, headers={"User-Agent": "TeleVault"})
+    with urllib.request.urlopen(req, timeout=10) as r:
+        return json.load(r)
+
+
+def bot_api_get_chat(chat_id: int) -> dict:
+    """Obtiene información de un chat mediante Bot API."""
+    data = _bot_api_call("getChat", {"chat_id": chat_id})
+    if data.get("ok"):
+        return data["result"]
+    raise ValueError(data.get("description", "Error al obtener chat"))
+
+
+def bot_api_check_admin(chat_id: int) -> tuple:
+    """Comprueba si el bot es administrador en el chat."""
+    token = _bot_api_token()
+    bot_hint = f"@{bot_username}" if bot_username else "tu bot"
+    if not token or ":" not in token:
+        return False, f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador."
+    try:
+        bot_id = int(token.split(":")[0])
+        data = _bot_api_call("getChatMember", {"chat_id": chat_id, "user_id": bot_id})
+        if data.get("ok"):
+            status = data["result"].get("status", "")
+            if status in ("administrator", "creator"):
+                return True, None
+            return False, f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador."
+    except Exception as e:
+        log.warning("Fallo en getChatMember: %s", public_error(e))
+    return False, f"El canal elegido no tiene al bot ({bot_hint}) añadido como Administrador."
+
+
+def bot_api_detect_chats() -> list:
+    """Escanea actualizaciones recientes del bot para encontrar canales y grupos donde esté presente."""
+    detected = []
+    seen = set()
+    try:
+        data = _bot_api_call("getUpdates", {"limit": 100})
+        if data.get("ok"):
+            for update in data.get("result", []):
+                chat = None
+                if "channel_post" in update:
+                    chat = update["channel_post"].get("chat")
+                elif "message" in update:
+                    chat = update["message"].get("chat")
+                elif "my_chat_member" in update:
+                    chat = update["my_chat_member"].get("chat")
+
+                if chat and chat.get("id"):
+                    cid = int(chat["id"])
+                    if cid not in seen and chat.get("type") in ("channel", "supergroup", "group"):
+                        seen.add(cid)
+                        title = chat.get("title") or str(cid)
+                        is_forum = bool(chat.get("is_forum", False))
+                        is_admin, _ = bot_api_check_admin(cid)
+                        detected.append({
+                            "id": str(cid),
+                            "title": title,
+                            "forum": is_forum,
+                            "is_admin": is_admin
+                        })
+    except Exception as e:
+        log.warning("Fallo al escanear getUpdates: %s", public_error(e))
+    return detected
+
+
 def get_target_channels(visible_only: bool = True) -> list:
     """Devuelve los IDs numéricos de los canales configurados."""
     channels = load_channels()
@@ -523,34 +601,16 @@ async def resolve_channel_input(raw_input: str):
     # 1. Enlace de invitación (t.me/+... o t.me/joinchat/...)
     invite_match = re.search(r"(?:t\.me\/(?:\+|joinchat\/))([A-Za-z0-9_-]+)", raw_input)
     if invite_match:
-        hash_str = invite_match.group(1)
-        try:
-            res = await client(CheckChatInviteRequest(hash_str))
-            if hasattr(res, "chat") and res.chat:
-                chat = res.chat
-                cid = utils.get_peer_id(chat)
-                title = getattr(chat, "title", raw_input)
-                forum = bool(getattr(chat, "forum", False))
-                return cid, title, forum
-            else:
-                title = getattr(res, "title", "Canal de Telegram")
-                raise HTTPException(
-                    400,
-                    f"Canal detectado ('{title}'), pero el bot {bot_hint} aún no es miembro. "
-                    f"Añade al bot como Administrador en Telegram antes de registrarlo."
-                )
-        except HTTPException:
-            raise
-        except Exception as e:
-            err_str = str(e)
-            if "INVITE_HASH_EXPIRED" in err_str:
-                raise HTTPException(400, "El enlace de invitación ha caducado")
-            elif "INVITE_HASH_INVALID" in err_str:
-                raise HTTPException(400, "El enlace de invitación no es válido")
-            log.warning("Fallo al resolver invite hash %s: %s", hash_str, public_error(e))
-            raise HTTPException(400, f"Error al comprobar el enlace: {public_error(e)}")
+        # Telegram MTProto y Bot API prohíben estrictamente que las cuentas bot procesen invite links
+        raise HTTPException(
+            400,
+            "Telegram restringe el acceso mediante enlaces de invitación (t.me/+...) para bots.\n\n"
+            "Como tu bot ya es Administrador en el canal, añade el canal de una de estas formas:\n"
+            "• Pega el enlace de cualquier mensaje del canal (clic derecho en un mensaje -> Copiar enlace, ej: https://t.me/c/...)\n"
+            "• O escribe cualquier mensaje en el canal (ej: 'hola') y pulsa el botón '🔍 Detectar canales del bot'."
+        )
 
-    # 2. ID numérico directo (ej: -1004433458655 o t.me/c/4433458655/...)
+    # 2. ID numérico directo (ej: -1004433458655) o enlace de mensaje privado (https://t.me/c/2458901234/5)
     clean_id = raw_input
     if "t.me/c/" in clean_id:
         m = re.search(r"t\.me\/c\/(\d+)", clean_id)
@@ -562,7 +622,19 @@ async def resolve_channel_input(raw_input: str):
         candidates = [int_id]
         if not str(int_id).startswith("-100"):
             candidates.append(int(f"-100{abs(int_id)}"))
+
         for candidate in candidates:
+            # 1. Intentar con Bot API getChat (100% fiable para canales donde el bot es miembro)
+            try:
+                chat_info = bot_api_get_chat(candidate)
+                cid = int(chat_info["id"])
+                title = chat_info.get("title", str(cid))
+                forum = bool(chat_info.get("is_forum", False))
+                return cid, title, forum
+            except Exception:
+                pass
+
+            # 2. Intentar con Telethon get_entity
             try:
                 entity = await client.get_entity(candidate)
                 cid = utils.get_peer_id(entity)
@@ -571,6 +643,7 @@ async def resolve_channel_input(raw_input: str):
                 return cid, title, forum
             except Exception:
                 continue
+
         raise HTTPException(
             400,
             f"No se pudo acceder al canal con ID {clean_id}. "
@@ -605,6 +678,14 @@ async def check_bot_admin_status(entity_or_id):
     Devuelve (is_admin: bool, error_msg: Optional[str])
     """
     bot_hint = f"@{bot_username}" if bot_username else "tu bot"
+    # Probar con Bot API getChatMember primero (muy rápido y fiable)
+    try:
+        int_id = int(entity_or_id) if str(entity_or_id).replace("-", "").isdigit() else None
+        if int_id:
+            return bot_api_check_admin(int_id)
+    except Exception:
+        pass
+
     if not client or not client.is_connected():
         return False, "El cliente de Telegram no está conectado."
 
@@ -1394,6 +1475,17 @@ async def get_known_channels_api():
             })
 
     return {"channels": all_known}
+
+
+@app.post("/api/channels/detect")
+async def detect_channels_api():
+    """Detecta canales donde el bot ha recibido mensajes o fue añadido recientemente."""
+    detected = bot_api_detect_chats()
+    channels_cfg = {c["id"]: c for c in load_channels()}
+    for d in detected:
+        cid = int(d["id"])
+        d["is_added"] = cid in channels_cfg
+    return {"ok": True, "detected": detected}
 
 
 @app.post("/api/channels/check")

@@ -134,6 +134,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnSaveBotConfig = document.getElementById('btnSaveBotConfig');
     const btnCancelBotConfig = document.getElementById('btnCancelBotConfig');
     const channelSuggestionsDropdown = document.getElementById('channelSuggestionsDropdown');
+    const btnDetectChannels = document.getElementById('btnDetectChannels');
     let knownChannelsList = [];
     let checkChannelDebounceTimer = null;
     let selectedChannelToVerify = null;
@@ -2477,6 +2478,35 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnCloseChannelsModal) btnCloseChannelsModal.addEventListener('click', closeChannelsModal);
     if (btnRefreshChannelsList) btnRefreshChannelsList.addEventListener('click', loadChannelsManager);
     if (btnSubmitAddChannel) btnSubmitAddChannel.addEventListener('click', handleAddChannel);
+
+    if (btnDetectChannels) {
+        btnDetectChannels.addEventListener('click', async () => {
+            btnDetectChannels.disabled = true;
+            showChannelFeedback('Escaneando canales recientes del bot en Telegram...', 'info');
+            try {
+                const res = await window.TelegramAPI.detectChannels();
+                const detected = res.detected || [];
+                if (detected.length === 0) {
+                    showChannelFeedback('No se detectaron canales nuevos. Asegúrate de enviar un mensaje en el canal (ej: "hola") para que el bot reciba la notificación.', 'error');
+                } else {
+                    const knownRes = await window.TelegramAPI.getKnownChannels();
+                    knownChannelsList = knownRes.channels || [];
+
+                    const unadded = detected.find(d => !d.is_added);
+                    if (unadded) {
+                        selectChannelSuggestion(unadded);
+                        showChannelFeedback(`✔ Canal detectado: "${unadded.title}". Verifica si deseas añadirlo.`, 'success');
+                    } else {
+                        showChannelFeedback(`Se detectaron ${detected.length} canal(es) donde el bot está activo.`, 'info');
+                    }
+                }
+            } catch (err) {
+                showChannelFeedback(err.message || 'Error al escanear canales', 'error');
+            } finally {
+                btnDetectChannels.disabled = false;
+            }
+        });
+    }
 
     if (inputNewChannel) {
         inputNewChannel.addEventListener('input', () => {

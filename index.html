@@ -332,8 +332,16 @@
                         <!-- Desplegable predictivo de sugerencias -->
                         <div id="channelSuggestionsDropdown" class="channel-suggestions hidden"></div>
                     </div>
+                    <div class="channel-add-tools">
+                        <button type="button" id="btnDetectChannels" class="btn-detect-channels" title="Detectar canales donde has añadido al bot recientemente">
+                            <span>🔍</span> Detectar canales del bot
+                        </button>
+                    </div>
                     <p class="channel-add-hint">
-                        💡 <strong>Importante:</strong> Añade al bot <strong id="modalBotName">@tu_bot</strong> como <strong>Administrador</strong> en el canal para que pueda gestionar archivos y temas.
+                        💡 <strong>Canales privados:</strong> Como Telegram no permite a los bots usar enlaces <code>t.me/+...</code>, para añadir un canal privado:
+                        <br><strong>Opción 1:</strong> Escribe cualquier mensaje en el canal (ej: <em>hola</em>) y pulsa <strong>Detectar canales del bot</strong> arriba.
+                        <br><strong>Opción 2:</strong> Haz clic derecho en cualquier mensaje del canal ➔ <em>Copiar enlace</em> (ej: <code>https://t.me/c/...</code>) y pégalo aquí.
+                        <br><em>Asegúrate de que <strong id="modalBotName">@tu_bot</strong> esté como <strong>Administrador</strong> en el canal.</em>
                     </p>
                     <div id="channelAddFeedback" class="channel-feedback hidden"></div>
                 </div>

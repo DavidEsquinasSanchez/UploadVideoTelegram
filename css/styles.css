@@ -1560,6 +1560,36 @@ th {
     width: 100%;
 }
 
+.channel-add-tools {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 6px;
+}
+
+.btn-detect-channels {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 0.78rem;
+    color: #60a5fa;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+}
+
+.btn-detect-channels:hover:not(:disabled) {
+    background-color: rgba(59, 130, 246, 0.12);
+    border-color: var(--accent);
+}
+
+.btn-detect-channels:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 .channel-suggestions {
     position: absolute;
     top: calc(100% + 4px);
