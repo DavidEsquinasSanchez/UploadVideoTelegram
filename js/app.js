@@ -147,7 +147,96 @@ document.addEventListener('DOMContentLoaded', async () => {
     let currentTab = 'uploads';
     let downloadsList = [];
 
-    // --------------------------------------------------- Menú lateral colapsable
+    // --------------------------------------------------- Modo Claro / Oscuro
+    const btnToggleTheme = document.getElementById('btnToggleTheme');
+
+    function applyTheme(theme) {
+        if (theme === 'light') {
+            document.body.classList.add('light-theme');
+            if (btnToggleTheme) {
+                btnToggleTheme.textContent = '☀️';
+                btnToggleTheme.title = 'Cambiar a modo oscuro';
+                btnToggleTheme.setAttribute('aria-label', 'Modo oscuro');
+            }
+        } else {
+            document.body.classList.remove('light-theme');
+            if (btnToggleTheme) {
+                btnToggleTheme.textContent = '🌙';
+                btnToggleTheme.title = 'Cambiar a modo claro';
+                btnToggleTheme.setAttribute('aria-label', 'Modo claro');
+            }
+        }
+    }
+
+    function initTheme() {
+        const savedTheme = localStorage.getItem('teleVaultTheme') || 'dark';
+        applyTheme(savedTheme);
+
+        if (btnToggleTheme) {
+            btnToggleTheme.addEventListener('click', () => {
+                const isLight = document.body.classList.contains('light-theme');
+                const nextTheme = isLight ? 'dark' : 'light';
+                localStorage.setItem('teleVaultTheme', nextTheme);
+                applyTheme(nextTheme);
+            });
+        }
+    }
+    initTheme();
+
+    // --------------------------------------------------- Menú lateral colapsable y redimensionable
+    const sidebarResizer = document.getElementById('sidebarResizer');
+    let isResizingSidebar = false;
+
+    function applySidebarWidth(w) {
+        if (!sidebar) return;
+        const maxAvail = Math.min(800, window.innerWidth - 360);
+        const clamped = Math.max(220, Math.min(w, maxAvail));
+        sidebar.style.width = clamped + 'px';
+        sidebar.style.minWidth = clamped + 'px';
+    }
+
+    function initSidebar() {
+        const savedWidth = parseInt(localStorage.getItem('teleVaultSidebarWidth'), 10);
+        if (savedWidth && !isNaN(savedWidth) && savedWidth >= 220) {
+            applySidebarWidth(savedWidth);
+        }
+
+        if (!sidebarResizer) return;
+
+        sidebarResizer.addEventListener('mousedown', (e) => {
+            if (sidebar.classList.contains('collapsed')) return;
+            isResizingSidebar = true;
+            document.body.classList.add('resizing-sidebar');
+            sidebarResizer.classList.add('is-resizing');
+            sidebar.classList.add('no-transition');
+            const startX = e.clientX;
+            const startWidth = sidebar.getBoundingClientRect().width;
+
+            function onMouseMove(ev) {
+                if (!isResizingSidebar) return;
+                const deltaX = ev.clientX - startX;
+                applySidebarWidth(startWidth + deltaX);
+            }
+
+            function onMouseUp() {
+                if (!isResizingSidebar) return;
+                isResizingSidebar = false;
+                document.body.classList.remove('resizing-sidebar');
+                sidebarResizer.classList.remove('is-resizing');
+                sidebar.classList.remove('no-transition');
+                window.removeEventListener('mousemove', onMouseMove);
+                window.removeEventListener('mouseup', onMouseUp);
+
+                const finalWidth = Math.round(sidebar.getBoundingClientRect().width);
+                localStorage.setItem('teleVaultSidebarWidth', finalWidth);
+            }
+
+            window.addEventListener('mousemove', onMouseMove);
+            window.addEventListener('mouseup', onMouseUp);
+            e.preventDefault();
+        });
+    }
+
     function toggleSidebar() {
         if (!sidebar) return;
         const isCollapsed = sidebar.classList.toggle('collapsed');
@@ -155,10 +244,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnToggleSidebar.textContent = isCollapsed ? '▶' : '◀';
             btnToggleSidebar.title = isCollapsed ? 'Descomprimir menú lateral' : 'Comprimir menú lateral';
         }
+        if (!isCollapsed) {
+            const savedWidth = parseInt(localStorage.getItem('teleVaultSidebarWidth'), 10) || 280;
+            applySidebarWidth(savedWidth);
+        }
     }
 
     if (btnToggleSidebar) btnToggleSidebar.addEventListener('click', toggleSidebar);
     if (btnSidebarCollapse) btnSidebarCollapse.addEventListener('click', toggleSidebar);
+    initSidebar();
 
     // --------------------------------------------- Log de Actividad colapsable
     if (logToggleTitle && logSection) {
@@ -2706,15 +2800,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 item.classList.add('open');
                 if (content) content.classList.remove('hidden');
                 setTimeout(() => item.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 120);
-            } else if (!openTopicId) {
-                // Por defecto, abre la primera guía (BotFather) para dar una bienvenida clara
-                if (item.id === 'guideItemBotFather') {
-                    item.classList.add('open');
-                    if (content) content.classList.remove('hidden');
-                } else {
-                    item.classList.remove('open');
-                    if (content) content.classList.add('hidden');
-                }
             } else {
                 item.classList.remove('open');
                 if (content) content.classList.add('hidden');
@@ -2787,6 +2872,50 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (e.target === guideModal) closeGuideModal();
         });
     }
+
+    // -------------------------------------------------- Modal Acerca de TeleVault
+    const aboutModal = document.getElementById('aboutModal');
+    const btnAboutProject = document.getElementById('btnAboutProject');
+    const btnCloseAboutModal = document.getElementById('btnCloseAboutModal');
+    const btnConfirmCloseAboutModal = document.getElementById('btnConfirmCloseAboutModal');
+
+    function openAboutModal() {
+        if (!aboutModal) return;
+        aboutModal.classList.remove('hidden');
+    }
+
+    function closeAboutModal() {
+        if (!aboutModal) return;
+        aboutModal.classList.add('hidden');
+    }
+
+    if (btnAboutProject) btnAboutProject.addEventListener('click', openAboutModal);
+    if (btnCloseAboutModal) btnCloseAboutModal.addEventListener('click', closeAboutModal);
+    if (btnConfirmCloseAboutModal) btnConfirmCloseAboutModal.addEventListener('click', closeAboutModal);
+
+    if (aboutModal) {
+        aboutModal.addEventListener('click', (e) => {
+            if (e.target === aboutModal) closeAboutModal();
+        });
+    }
+
+    // Tecla Escape para cerrar cualquier modal abierto de forma intuitiva
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (aboutModal && !aboutModal.classList.contains('hidden')) closeAboutModal();
+            if (guideModal && !guideModal.classList.contains('hidden')) closeGuideModal();
+            if (channelsModal && !channelsModal.classList.contains('hidden')) closeChannelsModal();
+            if (botConfigModal && !botConfigModal.classList.contains('hidden')) closeBotConfigModal();
+            if (deleteModal && !deleteModal.classList.contains('hidden')) {
+                deleteModal.classList.add('hidden');
+                fileToDelete = null;
+            }
+            if (downloadTopicModal && !downloadTopicModal.classList.contains('hidden')) {
+                downloadTopicModal.classList.add('hidden');
+                pendingTopicDownload = null;
+            }
+        }
+    });
 
     btnClearLog.addEventListener('click', () => { logConsole.innerHTML = ''; });
 

@@ -15,6 +15,8 @@
                 <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">◀</button>
                 <h1 class="brand-title">TeleVault</h1>
                 <button type="button" id="btnRefresh" class="btn-refresh" title="Recargar página">🔄</button>
+                <button type="button" id="btnToggleTheme" class="btn-theme-toggle" title="Cambiar a modo claro / oscuro">🌙</button>
+                <button type="button" id="btnAboutProject" class="btn-header-about" title="Acerca de TeleVault, repositorio y contacto">❗</button>
             </div>
             <div class="top-header-right">
                 <button type="button" id="btnOpenGuideModal" class="btn-header-guide" title="Guías de configuración y uso de TeleVault">
@@ -46,6 +48,9 @@
                     <!-- El listado de carpetas y subcarpetas se inyectará dinámicamente aquí -->
                 </div>
             </aside>
+
+            <!-- Separador redimensionable del panel lateral de Canales -->
+            <div id="sidebarResizer" class="sidebar-resizer" title="Arrastra horizontalmente para redimensionar el panel lateral de Canales"></div>
 
             <!-- Área Principal -->
             <main class="main-content">
@@ -686,6 +691,61 @@
                         </div>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Acerca de TeleVault / Información del Proyecto -->
+    <div id="aboutModal" class="modal hidden">
+        <div class="modal-content modal-about-content">
+            <div class="modal-channels-header">
+                <div class="modal-about-title-box">
+                    <h3>🚀 Acerca de TeleVault</h3>
+                    <span class="about-version-badge">v2.2.0</span>
+                </div>
+                <button type="button" id="btnCloseAboutModal" class="btn-modal-close" title="Cerrar">✕</button>
+            </div>
+
+            <div class="modal-about-body">
+                <div class="about-section">
+                    <h4 class="about-section-title">💡 Objetivo del Proyecto</h4>
+                    <p class="about-desc">
+                        <strong>TeleVault</strong> es una herramienta diseñada para simplificar y automatizar por completo la gestión, el fraccionamiento inteligente en partes, la subida y la descarga masiva de contenido multimedia (series, temporadas, películas y vídeos) hacia y desde canales y foros de <strong>Telegram</strong>. Preserva fielmente la calidad, integridad y extensión original de tus archivos sin coste alguno y con control 100% local.
+                    </p>
+                </div>
+
+                <div class="about-cards-grid">
+                    <div class="about-card">
+                        <div class="about-card-icon">🐙</div>
+                        <div class="about-card-info">
+                            <span class="about-card-label">Repositorio Oficial en GitHub</span>
+                            <a href="https://github.com/DavidEsquinasSanchez/UploadVideoTelegram" target="_blank" rel="noopener noreferrer" class="about-link" title="Abrir repositorio en GitHub">
+                                DavidEsquinasSanchez/UploadVideoTelegram ↗
+                            </a>
+                        </div>
+                    </div>
+
+                    <div class="about-card">
+                        <div class="about-card-icon">✉️</div>
+                        <div class="about-card-info">
+                            <span class="about-card-label">Contacto y Sugerencias</span>
+                            <a href="mailto:nigromante2004@gmail.com?subject=TeleVault%20-%20Consulta%20o%20Sugerencia" class="about-link" title="Contactar por email">
+                                nigromante2004@gmail.com ✉
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="about-help-note">
+                    <span class="about-note-icon">💬</span>
+                    <p>Si tienes cualquier duda, sugerencia de mejora, idea o incidencia, puedes contactar libremente por email o abrir una propuesta en GitHub.</p>
+                </div>
+            </div>
+
+            <div class="about-modal-actions">
+                <button type="button" id="btnConfirmCloseAboutModal" class="btn-primary-action">
+                    Cerrar
+                </button>
             </div>
         </div>
     </div>
