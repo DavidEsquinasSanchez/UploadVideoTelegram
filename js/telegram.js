@@ -57,8 +57,9 @@ const TelegramAPI = {
     },
 
     // Canales dinámicos
-    async getChannels() {
-        const response = await apiFetch('/channels');
+    async getChannels(refresh = false) {
+        const url = refresh ? '/channels?refresh=true' : '/channels';
+        const response = await apiFetch(url);
         if (!response.ok) throw new Error(await readError(response));
         return await response.json();
     },
