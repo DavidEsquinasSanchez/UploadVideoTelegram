@@ -4,6 +4,7 @@
 
 const API_BASE_URL = '/api';
 const API_TOKEN = (document.querySelector('meta[name="nigro-token"]') || {}).content || '';
+const uploadAbortControllers = new Map();
 
 class ApiError extends Error {
     constructor(message, status = 0) {
@@ -158,11 +159,23 @@ const TelegramAPI = {
     },
 
     async cancelUploads(ids) {
+        if (Array.isArray(ids)) {
+            ids.forEach(id => {
+                const ctrl = uploadAbortControllers.get(id);
+                if (ctrl) {
+                    try { ctrl.abort(); } catch (_) {}
+                }
+            });
+        }
         if (!ids.length) return { cancelled: [] };
         const formData = new FormData();
         formData.append('keys', ids.join(','));
-        const response = await apiFetch('/cancel', { method: 'POST', body: formData });
-        return response.ok ? await response.json() : { cancelled: [] };
+        try {
+            const response = await apiFetch('/cancel', { method: 'POST', body: formData });
+            return response.ok ? await response.json() : { cancelled: [] };
+        } catch (_) {
+            return { cancelled: [] };
+        }
     },
 
     // Abre el selector nativo de carpetas para elegir destino de descargas
@@ -247,6 +260,8 @@ const TelegramAPI = {
     async uploadFile(fileItem, categoryId, topicId, onProgress) {
         const key = fileItem.id;
         let active = true;
+        const abortController = new AbortController();
+        uploadAbortControllers.set(key, abortController);
 
         const poll = async () => {
             try {
@@ -254,6 +269,10 @@ const TelegramAPI = {
                 if (!active || !res.ok) return;
                 const data = await res.json();
                 if (!active) return;
+                if (data.status === 'Cancelado') {
+                    abortController.abort();
+                    return;
+                }
                 if (data.status === 'Subiendo a Telegram') {
                     const resto = (data.eta === null || data.eta === undefined)
                         ? 'calculando...'
@@ -268,7 +287,7 @@ const TelegramAPI = {
                 // errores temporales del sondeo: se ignoran
             }
         };
-        const pollInterval = setInterval(poll, 1000);
+        const pollInterval = setInterval(poll, 700);
 
         try {
             const formData = new FormData();
@@ -278,16 +297,28 @@ const TelegramAPI = {
             formData.append('chatId', categoryId);
             formData.append('topicId', topicId || '');
 
-            const response = await apiFetch('/upload', { method: 'POST', body: formData });
+            const response = await apiFetch('/upload', {
+                method: 'POST',
+                body: formData,
+                signal: abortController.signal
+            });
             if (response.ok) return await response.json();
 
             const message = await readError(response);
             const error = new Error(message);
             error.cancelled = (response.status === 409 && message === 'Cancelado');
             throw error;
+        } catch (err) {
+            if (abortController.signal.aborted || err.name === 'AbortError') {
+                const cancelErr = new Error('Cancelado');
+                cancelErr.cancelled = true;
+                throw cancelErr;
+            }
+            throw err;
         } finally {
             active = false;
             clearInterval(pollInterval);
+            uploadAbortControllers.delete(key);
         }
     }
 };

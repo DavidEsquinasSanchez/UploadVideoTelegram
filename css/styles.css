@@ -664,15 +664,9 @@ body.resizing-sidebar * {
 .upload-actions-left {
     display: flex;
     align-items: center;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.upload-actions-right {
-    display: flex;
-    align-items: center;
     gap: 8px;
     flex-wrap: wrap;
+    width: 100%;
 }
 
 .btn-pick-files {

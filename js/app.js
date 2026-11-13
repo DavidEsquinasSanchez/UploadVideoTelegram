@@ -71,15 +71,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnConfirmDelete = document.getElementById('btnConfirmDelete');
     const btnCancelDelete = document.getElementById('btnCancelDelete');
 
-    const btnDeleteAll = document.getElementById('btnDeleteAll');
+    const btnClearAllUploads = document.getElementById('btnClearAllUploads');
     const deleteAllModal = document.getElementById('deleteAllModal');
     const btnConfirmDeleteAll = document.getElementById('btnConfirmDeleteAll');
     const btnCancelDeleteAll = document.getElementById('btnCancelDeleteAll');
 
-    const btnDeleteOk = document.getElementById('btnDeleteOk');
+    const btnClearCompletedUploads = document.getElementById('btnClearCompletedUploads');
     const deleteOkModal = document.getElementById('deleteOkModal');
     const btnConfirmDeleteOk = document.getElementById('btnConfirmDeleteOk');
     const btnCancelDeleteOk = document.getElementById('btnCancelDeleteOk');
+    const helpText = document.getElementById('helpText');
 
     const downloadTopicModal = document.getElementById('downloadTopicModal');
     const downloadTopicModalText = document.getElementById('downloadTopicModalText');
@@ -800,6 +801,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const selectionEnabled = isFormValid && !uploading;
         btnSeleccionar.disabled = !selectionEnabled;
         btnCrearTema.disabled = !canCreateTopic || uploading;
+        if (helpText) helpText.style.display = selectionEnabled ? 'none' : '';
 
         if (isDownloading) {
             btnSeleccionar.disabled = true;
@@ -810,6 +812,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnReintentar.title = DOWNLOAD_LOCKED_MSG;
             btnCrearTema.disabled = !canCreateTopic;
             btnCrearTema.title = canCreateTopic ? 'Crear Tema' : '';
+            if (btnClearCompletedUploads) {
+                btnClearCompletedUploads.disabled = true;
+                btnClearCompletedUploads.title = DOWNLOAD_LOCKED_MSG;
+            }
+            if (btnClearAllUploads) {
+                btnClearAllUploads.disabled = true;
+                btnClearAllUploads.title = DOWNLOAD_LOCKED_MSG;
+            }
             return;
         }
 
@@ -860,6 +870,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     function checkUploadButtonState() {
+        const hasCompleted = filesToUpload.some(f => f.status === 'Subido OK');
+        const hasAnyFiles = filesToUpload.length > 0;
+
+        if (btnClearCompletedUploads) {
+            btnClearCompletedUploads.disabled = uploading || isDownloading || !hasCompleted;
+            btnClearCompletedUploads.title = hasCompleted
+                ? 'Limpiar de la tabla los archivos finalizados correctamente'
+                : 'No hay archivos subidos correctamente para limpiar';
+        }
+
+        if (btnClearAllUploads) {
+            btnClearAllUploads.disabled = uploading || isDownloading || !hasAnyFiles;
+            btnClearAllUploads.title = hasAnyFiles
+                ? 'Vaciar todos los archivos de la tabla'
+                : 'La tabla está vacía';
+        }
+
         if (isDownloading) {
             btnSubir.disabled = true;
             btnSubir.title = DOWNLOAD_LOCKED_MSG;
@@ -1960,6 +1987,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
         updateSortIcons();
         updateBadges();
+        checkUploadButtonState();
     }
 
     function updateRowStatus(id, newStatus) {
@@ -1981,6 +2009,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const editBtn = row.querySelector('.btn-edit-transformed');
             if (editBtn) editBtn.disabled = isWorkingStatus(newStatus);
         }
+        checkUploadButtonState();
     }
 
     // ------------------------------------ Redimensionamiento de columnas de la tabla
@@ -2034,30 +2063,48 @@ document.addEventListener('DOMContentLoaded', async () => {
         fileToDeleteId = null;
     });
 
-    btnDeleteAll.addEventListener('click', () => { if (filesToUpload.length > 0) deleteAllModal.classList.remove('hidden'); });
-    btnCancelDeleteAll.addEventListener('click', () => { deleteAllModal.classList.add('hidden'); });
-    deleteAllModal.addEventListener('click', (e) => { if (e.target === deleteAllModal) deleteAllModal.classList.add('hidden'); });
-    btnConfirmDeleteAll.addEventListener('click', () => {
-        filesToUpload = [];
-        renderTable();
-        checkUploadButtonState();
-        addLog("Se han eliminado todos los archivos de la lista.", "warning");
-        deleteAllModal.classList.add('hidden');
-    });
+    if (btnClearAllUploads) {
+        btnClearAllUploads.addEventListener('click', () => {
+            if (!btnClearAllUploads.disabled && filesToUpload.length > 0 && deleteAllModal) {
+                deleteAllModal.classList.remove('hidden');
+            }
+        });
+    }
+    if (btnCancelDeleteAll && deleteAllModal) {
+        btnCancelDeleteAll.addEventListener('click', () => { deleteAllModal.classList.add('hidden'); });
+        deleteAllModal.addEventListener('click', (e) => { if (e.target === deleteAllModal) deleteAllModal.classList.add('hidden'); });
+    }
+    if (btnConfirmDeleteAll) {
+        btnConfirmDeleteAll.addEventListener('click', () => {
+            filesToUpload = [];
+            renderTable();
+            checkUploadButtonState();
+            addLog("Se han eliminado todos los archivos de la tabla.", "warning");
+            if (deleteAllModal) deleteAllModal.classList.add('hidden');
+        });
+    }
 
-    btnDeleteOk.addEventListener('click', () => {
-        if (filesToUpload.some(f => f.status === 'Subido OK')) deleteOkModal.classList.remove('hidden');
-    });
-    btnCancelDeleteOk.addEventListener('click', () => { deleteOkModal.classList.add('hidden'); });
-    deleteOkModal.addEventListener('click', (e) => { if (e.target === deleteOkModal) deleteOkModal.classList.add('hidden'); });
-    btnConfirmDeleteOk.addEventListener('click', () => {
-        const totalBefore = filesToUpload.length;
-        filesToUpload = filesToUpload.filter(f => f.status !== 'Subido OK');
-        renderTable();
-        checkUploadButtonState();
-        addLog(`Se han eliminado ${totalBefore - filesToUpload.length} archivo(s) con estado 'Subido OK'.`, "info");
-        deleteOkModal.classList.add('hidden');
-    });
+    if (btnClearCompletedUploads) {
+        btnClearCompletedUploads.addEventListener('click', () => {
+            if (!btnClearCompletedUploads.disabled && filesToUpload.some(f => f.status === 'Subido OK') && deleteOkModal) {
+                deleteOkModal.classList.remove('hidden');
+            }
+        });
+    }
+    if (btnCancelDeleteOk && deleteOkModal) {
+        btnCancelDeleteOk.addEventListener('click', () => { deleteOkModal.classList.add('hidden'); });
+        deleteOkModal.addEventListener('click', (e) => { if (e.target === deleteOkModal) deleteOkModal.classList.add('hidden'); });
+    }
+    if (btnConfirmDeleteOk) {
+        btnConfirmDeleteOk.addEventListener('click', () => {
+            const totalBefore = filesToUpload.length;
+            filesToUpload = filesToUpload.filter(f => f.status !== 'Subido OK');
+            renderTable();
+            checkUploadButtonState();
+            addLog(`Se han eliminado ${totalBefore - filesToUpload.length} archivo(s) con estado 'Subido OK'.`, "info");
+            if (deleteOkModal) deleteOkModal.classList.add('hidden');
+        });
+    }
 
     // ---------------------------------------------------------------- Descarga de tema (Modal)
     if (btnConfirmDownloadTopic) {
@@ -2101,7 +2148,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             updateRowStatus(fileObj.id, 'Subido OK');
             addLog(`Subida finalizada con éxito: ${fileObj.transformedName} (${duration})`, "success");
         } catch (error) {
-            if (error.cancelled) {
+            if (error.cancelled || cancelRequested) {
                 updateRowStatus(fileObj.id, 'Cancelado');
                 addLog(`Subida cancelada: ${fileObj.transformedName}`, "warning");
             } else {
@@ -2123,8 +2170,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnReintentar.disabled = true;
         btnCrearTema.disabled = true;
         btnSeleccionar.disabled = true;
-        btnDeleteAll.disabled = true;
-        btnDeleteOk.disabled = true;
+        if (btnClearAllUploads) btnClearAllUploads.disabled = true;
+        if (btnClearCompletedUploads) btnClearCompletedUploads.disabled = true;
         btnCancelar.disabled = false;
         btnCancelar.classList.remove('hidden');
 
@@ -2174,9 +2221,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             : "Cola de subida procesada.", cancelRequested ? "warning" : "info");
         cancelRequested = false;
 
+        // Asegurar que ninguna fila quede en 'Cancelando...' ni en estado de ejecución
+        filesToUpload.forEach(f => {
+            if (f.status === 'Cancelando...' || isWorkingStatus(f.status)) {
+                updateRowStatus(f.id, 'Cancelado');
+            }
+        });
+
         validateForm();
-        btnDeleteAll.disabled = false;
-        btnDeleteOk.disabled = false;
         checkUploadButtonState();
 
         if (filesToUpload.some(f => f.status === 'Subido OK')) {
