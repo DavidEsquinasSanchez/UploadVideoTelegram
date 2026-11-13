@@ -166,6 +166,7 @@ API_TOKEN = secrets.token_urlsafe(32)   # se inyecta en index.html; las llamadas
 selected_files = {}      # fileId -> {"path", "name", "size"}  (elegidos con el selector nativo)
 progress = {}            # clave de subida -> {"percent", "status", "ts"}
 active_uploads = {}      # clave de subida -> asyncio.Task
+cancelled_uploads = set() # claves de subida canceladas por el usuario
 trackers = {}            # clave de subida -> SpeedTracker (para el tiempo restante)
 refresh_task: Optional[asyncio.Task] = None
 refresh_guard = asyncio.Lock()
@@ -1230,13 +1231,14 @@ async def run_upload(key, path, size, name, chat_id, topic_id, file_id=None, ori
 
 
 async def start_and_wait(key, path, size, name, chat_id, topic_id, file_id=None, original_name=None):
-    if key in active_uploads:
+    if key in active_uploads and active_uploads[key] != asyncio.current_task():
         raise HTTPException(409, "Este archivo ya se está subiendo")
     purge_progress()
     task = asyncio.create_task(run_upload(key, path, size, name, chat_id, topic_id, file_id, original_name=original_name))
     active_uploads[key] = task
     await asyncio.wait({task})              # si el navegador se desconecta, la subida continúa
-    if task.cancelled():
+    if task.cancelled() or key in cancelled_uploads:
+        update_progress(key, percent=0, status="Cancelado")
         raise HTTPException(409, "Cancelado")
     exc = task.exception()
     if exc:
@@ -1275,13 +1277,15 @@ def _run_file_dialog() -> list:
 # ---------------------------------------------------------------------------
 # DIVISIÓN BINARIA DE ARCHIVOS GRANDES (> 1950 MB)
 # ---------------------------------------------------------------------------
-def extract_binary_part(source_path: str, output_path: str, start_byte: int, length_bytes: int) -> str:
+def extract_binary_part(source_path: str, output_path: str, start_byte: int, length_bytes: int, cancel_check=None) -> str:
     """Extrae una parte binaria fija del archivo por bytes sin recodificar."""
     with open(source_path, "rb") as f_in, open(output_path, "wb") as f_out:
         f_in.seek(start_byte)
         remaining = length_bytes
         buf_size = 1024 * 1024 * 16  # Bloques de 16 MiB para máxima velocidad
         while remaining > 0:
+            if cancel_check and cancel_check():
+                raise asyncio.CancelledError("Extracción cancelada por el usuario")
             chunk = f_in.read(min(remaining, buf_size))
             if not chunk:
                 break
@@ -1758,6 +1762,11 @@ async def upload_selected(
     if not os.path.isfile(info["path"]):
         raise HTTPException(404, "El archivo original ya no existe en el disco")
     key = validate_key(fileId)
+    if key in cancelled_uploads:
+        cancelled_uploads.discard(key)
+        update_progress(key, percent=0, status="Cancelado")
+        raise HTTPException(409, "Cancelado")
+
     chat, topic = validate_target(chatId, topicId)
     name = sanitize_name(transformedName)
     orig_name = (info.get("name") if info else None) or originalName
@@ -1766,44 +1775,63 @@ async def upload_selected(
     is_part = info.get("is_part", False)
     temp_part_file = None
 
-    if is_part:
-        temp_part_file = TEMP_DIR / f"{fileId}.tmp"
-        part_idx = info.get("part_index", 1)
-        total_parts = info.get("total_parts", 1)
-        start_byte = info.get("start_byte", 0)
-        length_bytes = info.get("length_bytes", 0)
-        log.info("[Split] Extrayendo parte binaria %d/%d de '%s' (%.1f MB) -> %s...",
-                 part_idx, total_parts, info.get("name", ""), length_bytes / (1024 * 1024), name)
-        progress[key] = {
-            "percent": 0,
-            "status": f"Preparando parte {part_idx}/{total_parts}...",
-            "ts": time.time()
-        }
-        try:
-            await asyncio.to_thread(
-                extract_binary_part,
-                info["path"],
-                str(temp_part_file),
-                start_byte,
-                length_bytes
-            )
-        except Exception as e:
-            log.error("Error al extraer parte binaria: %s", public_error(e), exc_info=True)
-            if temp_part_file and temp_part_file.is_file():
-                try: temp_part_file.unlink()
-                except Exception: pass
-            raise HTTPException(500, f"Error al dividir archivo por bytes: {public_error(e)}")
-
-        upload_path = str(temp_part_file)
+    curr_task = asyncio.current_task()
+    active_uploads[key] = curr_task
 
     try:
+        if is_part:
+            temp_part_file = TEMP_DIR / f"{fileId}.tmp"
+            part_idx = info.get("part_index", 1)
+            total_parts = info.get("total_parts", 1)
+            start_byte = info.get("start_byte", 0)
+            length_bytes = info.get("length_bytes", 0)
+            log.info("[Split] Extrayendo parte binaria %d/%d de '%s' (%.1f MB) -> %s...",
+                     part_idx, total_parts, info.get("name", ""), length_bytes / (1024 * 1024), name)
+            progress[key] = {
+                "percent": 0,
+                "status": f"Preparando parte {part_idx}/{total_parts}...",
+                "ts": time.time()
+            }
+            try:
+                await asyncio.to_thread(
+                    extract_binary_part,
+                    info["path"],
+                    str(temp_part_file),
+                    start_byte,
+                    length_bytes,
+                    cancel_check=lambda: key in cancelled_uploads
+                )
+            except (asyncio.CancelledError, InterruptedError):
+                log.info("[CANCELADO durante preparación] '%s'", name)
+                update_progress(key, percent=0, status="Cancelado")
+                raise HTTPException(409, "Cancelado")
+            except Exception as e:
+                log.error("Error al extraer parte binaria: %s", public_error(e), exc_info=True)
+                if temp_part_file and temp_part_file.is_file():
+                    try: temp_part_file.unlink()
+                    except Exception: pass
+                raise HTTPException(500, f"Error al dividir archivo por bytes: {public_error(e)}")
+
+            if key in cancelled_uploads:
+                log.info("[CANCELADO tras extracción] '%s'", name)
+                update_progress(key, percent=0, status="Cancelado")
+                raise HTTPException(409, "Cancelado")
+
+            upload_path = str(temp_part_file)
+
         size = os.path.getsize(upload_path)
         return await start_and_wait(key, upload_path, size, name, chat, topic, file_id=fileId, original_name=orig_name)
+    except asyncio.CancelledError:
+        update_progress(key, percent=0, status="Cancelado")
+        log.info("[CANCELADO] '%s'", name)
+        raise HTTPException(409, "Cancelado")
     finally:
+        active_uploads.pop(key, None)
+        cancelled_uploads.discard(key)
         if temp_part_file and temp_part_file.is_file():
             try:
                 temp_part_file.unlink()
-                log.info("Fragmento temporal eliminado tras la subida: %s", temp_part_file.name)
+                log.info("Fragmento temporal eliminado tras la subida o cancelación: %s", temp_part_file.name)
             except Exception:
                 pass
 
@@ -1812,6 +1840,8 @@ async def upload_selected(
 async def cancel_uploads(keys: str = Form("")):
     cancelled = []
     for key in [k for k in keys.split(",") if k]:
+        cancelled_uploads.add(key)
+        update_progress(key, percent=0, status="Cancelado")
         task = active_uploads.get(key)
         if task and not task.done():
             task.cancel()

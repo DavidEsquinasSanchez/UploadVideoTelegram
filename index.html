@@ -126,10 +126,6 @@
                                             <button type="button" id="btnSeleccionar" class="btn-secondary btn-pick-files" disabled>
                                                 <span class="btn-icon">🎬</span> Seleccionar vídeo(s)…
                                             </button>
-                                            <small id="helpText" class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
-                                        </div>
-
-                                        <div class="upload-actions-right">
                                             <button type="button" id="btnCancelar" class="btn-cancel-upload btn-upload-sub hidden">
                                                 <span class="btn-icon">⏹️</span> Cancelar subida
                                             </button>
@@ -139,6 +135,13 @@
                                             <button type="button" id="btnSubir" class="btn-upload-primary" disabled>
                                                 <span class="btn-icon">🚀</span> Subir Contenido
                                             </button>
+                                            <button type="button" id="btnClearCompletedUploads" class="btn-secondary btn-upload-sub" disabled title="Limpiar de la tabla los archivos finalizados correctamente">
+                                                <span class="btn-icon">🧹</span> Limpiar Finalizados OK
+                                            </button>
+                                            <button type="button" id="btnClearAllUploads" class="btn-secondary btn-upload-sub" disabled title="Vaciar todos los archivos de la tabla">
+                                                <span class="btn-icon">🗑️</span> Vaciar Tabla
+                                            </button>
+                                            <small id="helpText" class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
                                         </div>
                                     </div>
 
@@ -166,14 +169,12 @@
                                             <th id="thStatus" style="min-width: 140px; width: 18%;">
                                                 <div class="th-action-inner">
                                                     <span>Estado</span>
-                                                    <button type="button" id="btnDeleteOk" class="btn-icon-header" title="Eliminar Subidos OK">🗑️</button>
                                                 </div>
                                                 <div class="resizer" title="Arrastra para redimensionar columna"></div>
                                             </th>
                                             <th id="thDelete" class="th-action-col" style="width: 90px; min-width: 90px; text-align: center;">
                                                 <div class="th-action-inner" style="justify-content: center;">
                                                     <span>Eliminar</span>
-                                                    <button type="button" id="btnDeleteAll" class="btn-icon-header" title="Eliminar todos">🗑️</button>
                                                 </div>
                                             </th>
                                         </tr>
@@ -282,7 +283,7 @@
     </div>
     <div id="deleteAllModal" class="modal hidden">
         <div class="modal-content">
-            <p>¿Estás seguro de eliminar todos los elementos?</p>
+            <p>¿Estás seguro de eliminar todos los archivos de la tabla?</p>
             <div class="modal-actions">
                 <button id="btnConfirmDeleteAll" class="btn-confirm">Sí</button>
                 <button id="btnCancelDeleteAll" class="btn-cancel">No</button>
@@ -291,7 +292,7 @@
     </div>
     <div id="deleteOkModal" class="modal hidden">
         <div class="modal-content">
-            <p>¿Esta seguro de eliminar todos los elementos?</p>
+            <p>¿Estás seguro de eliminar los archivos subidos correctamente?</p>
             <div class="modal-actions">
                 <button id="btnConfirmDeleteOk" class="btn-confirm">Sí</button>
                 <button id="btnCancelDeleteOk" class="btn-cancel">No</button>
