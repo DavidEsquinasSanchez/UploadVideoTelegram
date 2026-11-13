@@ -1235,12 +1235,12 @@ th {
 
 /* Modal de Gestión de Canales */
 .modal-channels-content {
-    max-width: 580px;
+    max-width: 640px;
     width: 92%;
-    max-height: 85vh;
+    max-height: 90vh;
     display: flex;
     flex-direction: column;
-    padding: 24px;
+    padding: 22px 24px;
     text-align: left;
     box-sizing: border-box;
     overflow: hidden;
@@ -1285,8 +1285,10 @@ th {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
-    padding-right: 4px;
-    gap: 16px;
+    padding-right: 6px;
+    gap: 14px;
+    min-height: 0;
+    flex: 1;
 }
 
 .channel-add-card {
@@ -1355,8 +1357,12 @@ th {
 .channel-add-hint {
     font-size: 0.78rem;
     color: var(--text-muted);
-    margin-top: 8px;
-    line-height: 1.4;
+    margin-top: 10px;
+    padding: 10px 14px;
+    background-color: rgba(15, 23, 42, 0.65);
+    border: 1px dashed rgba(59, 130, 246, 0.35);
+    border-radius: 6px;
+    line-height: 1.45;
 }
 
 .channel-add-hint strong {
@@ -1394,7 +1400,8 @@ th {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 4px;
+    margin-top: 6px;
+    flex-shrink: 0;
 }
 
 .channels-section-title h4 {
@@ -1425,8 +1432,7 @@ th {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 280px;
-    overflow-y: auto;
+    min-height: 160px;
     padding-right: 4px;
 }
 
@@ -1562,26 +1568,48 @@ th {
 
 .channel-add-tools {
     display: flex;
-    justify-content: flex-end;
-    margin-top: 6px;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 8px;
+    gap: 8px;
 }
 
-.btn-detect-channels {
+.btn-channel-tool {
     background: none;
     border: 1px solid var(--border);
     border-radius: 6px;
-    padding: 5px 10px;
-    font-size: 0.78rem;
-    color: #60a5fa;
+    padding: 5px 12px;
+    font-size: 0.8rem;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
-    gap: 5px;
-    transition: all 0.2s;
+    gap: 6px;
+    transition: all 0.2s ease;
+}
+
+.btn-channel-help {
+    color: var(--text-muted);
+}
+
+.btn-channel-help:hover {
+    color: var(--text-main);
+    border-color: var(--accent);
+    background-color: rgba(255, 255, 255, 0.05);
+}
+
+.btn-channel-help.active {
+    color: #93c5fd;
+    border-color: var(--accent);
+    background-color: rgba(59, 130, 246, 0.16);
+    font-weight: 600;
+}
+
+.btn-detect-channels {
+    color: #60a5fa;
 }
 
 .btn-detect-channels:hover:not(:disabled) {
-    background-color: rgba(59, 130, 246, 0.12);
+    background-color: rgba(59, 130, 246, 0.14);
     border-color: var(--accent);
 }
 
@@ -1591,17 +1619,47 @@ th {
 }
 
 .channel-suggestions {
-    position: absolute;
-    top: calc(100% + 4px);
-    left: 0;
-    right: 0;
-    background-color: var(--bg-panel);
+    margin-top: 8px;
+    background-color: rgba(15, 23, 42, 0.96);
     border: 1px solid var(--accent);
     border-radius: 8px;
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-    max-height: 220px;
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
+    max-height: 190px;
     overflow-y: auto;
-    z-index: 1050;
+    position: relative;
+    z-index: 10;
+    transition: all 0.2s ease;
+}
+
+.channel-suggestions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background-color: rgba(30, 41, 59, 0.85);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: #93c5fd;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn-close-suggestions {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 4px;
+    line-height: 1;
+    transition: color 0.15s, background-color 0.15s;
+}
+
+.btn-close-suggestions:hover {
+    color: var(--text-main);
+    background-color: rgba(255, 255, 255, 0.12);
 }
 
 .channel-suggestion-item {
@@ -1620,7 +1678,7 @@ th {
 
 .channel-suggestion-item:hover,
 .channel-suggestion-item.selected {
-    background-color: rgba(59, 130, 246, 0.2);
+    background-color: rgba(59, 130, 246, 0.22);
 }
 
 .suggestion-left {
@@ -1664,13 +1722,35 @@ th {
 }
 
 .suggestion-badge {
-    font-size: 0.68rem;
-    padding: 2px 6px;
+    font-size: 0.7rem;
+    padding: 2px 7px;
     border-radius: 4px;
-    background: rgba(59, 130, 246, 0.15);
-    color: var(--accent);
     font-weight: 600;
     flex-shrink: 0;
+}
+
+.suggestion-badge.registered {
+    background-color: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+}
+
+.suggestion-badge.detected {
+    background-color: rgba(59, 130, 246, 0.22);
+    color: #60a5fa;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.suggestion-badge.cached {
+    background-color: rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+}
+
+.suggestion-empty {
+    padding: 12px 14px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    text-align: center;
 }
 
 /* Modal de Configuración del Bot */

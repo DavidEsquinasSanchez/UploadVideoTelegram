@@ -1474,6 +1474,24 @@ async def get_known_channels_api():
                 "visible": False
             })
 
+    # También incluir canales detectados recientemente vía Bot API si aún no estaban en lista
+    try:
+        detected = bot_api_detect_chats()
+        for d in detected:
+            cid = int(d["id"])
+            if cid not in seen_ids:
+                seen_ids.add(cid)
+                all_known.append({
+                    "id": str(cid),
+                    "title": d.get("title", str(cid)),
+                    "forum": d.get("forum", False),
+                    "is_added": False,
+                    "visible": False,
+                    "is_admin": d.get("is_admin", False)
+                })
+    except Exception:
+        pass
+
     return {"channels": all_known}
 
 
@@ -1481,10 +1499,19 @@ async def get_known_channels_api():
 async def detect_channels_api():
     """Detecta canales donde el bot ha recibido mensajes o fue añadido recientemente."""
     detected = bot_api_detect_chats()
-    channels_cfg = {c["id"]: c for c in load_channels()}
+    channels_cfg = set()
+    for c in load_channels():
+        try:
+            channels_cfg.add(int(c["id"]))
+        except (ValueError, TypeError, KeyError):
+            pass
+
     for d in detected:
-        cid = int(d["id"])
-        d["is_added"] = cid in channels_cfg
+        try:
+            cid = int(d["id"])
+            d["is_added"] = cid in channels_cfg
+        except (ValueError, TypeError):
+            d["is_added"] = False
     return {"ok": True, "detected": detected}
 
 

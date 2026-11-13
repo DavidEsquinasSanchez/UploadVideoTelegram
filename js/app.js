@@ -135,6 +135,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const btnCancelBotConfig = document.getElementById('btnCancelBotConfig');
     const channelSuggestionsDropdown = document.getElementById('channelSuggestionsDropdown');
     const btnDetectChannels = document.getElementById('btnDetectChannels');
+    const btnToggleChannelHelp = document.getElementById('btnToggleChannelHelp');
+    const channelHelpBlock = document.getElementById('channelHelpBlock');
     let knownChannelsList = [];
     let checkChannelDebounceTimer = null;
     let selectedChannelToVerify = null;
@@ -2142,6 +2144,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             channelSuggestionsDropdown.classList.add('hidden');
             channelSuggestionsDropdown.innerHTML = '';
         }
+        // Por defecto la ayuda inicia oculta y el botón inactivo
+        if (channelHelpBlock) channelHelpBlock.classList.add('hidden');
+        if (btnToggleChannelHelp) btnToggleChannelHelp.classList.remove('active');
+
         try {
             const res = await window.TelegramAPI.getKnownChannels();
             knownChannelsList = res.channels || [];
@@ -2158,29 +2164,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!channelsModal) return;
         channelsModal.classList.add('hidden');
         if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
+        if (channelHelpBlock) channelHelpBlock.classList.add('hidden');
+        if (btnToggleChannelHelp) btnToggleChannelHelp.classList.remove('active');
     }
 
-    function renderChannelSuggestions(filterText) {
+    function renderSuggestionsList(items, headerTitle = 'Canales sugeridos', filterQuery = '') {
         if (!channelSuggestionsDropdown) return;
-        const q = (filterText || '').toLowerCase().trim();
-        if (!q) {
-            channelSuggestionsDropdown.classList.add('hidden');
-            channelSuggestionsDropdown.innerHTML = '';
-            return;
-        }
-
-        const matches = knownChannelsList.filter(c =>
-            (c.title && c.title.toLowerCase().includes(q)) || String(c.id).includes(q)
-        );
-
-        if (matches.length === 0) {
+        if (!items || items.length === 0) {
             channelSuggestionsDropdown.classList.add('hidden');
             channelSuggestionsDropdown.innerHTML = '';
             return;
         }
 
         channelSuggestionsDropdown.innerHTML = '';
-        matches.slice(0, 6).forEach(c => {
+
+        // Encabezado con título y botón de cerrar
+        const header = document.createElement('div');
+        header.className = 'channel-suggestions-header';
+
+        const titleEl = document.createElement('span');
+        titleEl.textContent = headerTitle;
+
+        const btnClose = document.createElement('button');
+        btnClose.type = 'button';
+        btnClose.className = 'btn-close-suggestions';
+        btnClose.title = 'Cerrar sugerencias';
+        btnClose.textContent = '✕';
+        btnClose.addEventListener('click', (e) => {
+            e.stopPropagation();
+            channelSuggestionsDropdown.classList.add('hidden');
+        });
+
+        header.append(titleEl, btnClose);
+        channelSuggestionsDropdown.appendChild(header);
+
+        // Lista de sugerencias
+        items.slice(0, 8).forEach(c => {
             const item = document.createElement('div');
             item.className = 'channel-suggestion-item';
 
@@ -2194,26 +2213,38 @@ document.addEventListener('DOMContentLoaded', async () => {
             const text = document.createElement('div');
             text.className = 'suggestion-text';
 
-            const title = document.createElement('span');
-            title.className = 'suggestion-title';
+            const titleSpan = document.createElement('span');
+            titleSpan.className = 'suggestion-title';
 
-            const regex = new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
-            title.innerHTML = c.title.replace(regex, '<mark>$1</mark>');
+            if (filterQuery) {
+                const regex = new RegExp(`(${filterQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+                titleSpan.innerHTML = (c.title || String(c.id)).replace(regex, '<mark>$1</mark>');
+            } else {
+                titleSpan.textContent = c.title || String(c.id);
+            }
 
             const idSpan = document.createElement('span');
             idSpan.className = 'suggestion-id';
             idSpan.textContent = `ID: ${c.id}`;
 
-            text.append(title, idSpan);
+            text.append(titleSpan, idSpan);
             left.append(icon, text);
 
             const badge = document.createElement('span');
-            badge.className = 'suggestion-badge';
-            badge.textContent = c.is_added ? (c.visible ? 'Activo' : 'Oculto') : 'En caché';
+            if (c.is_added) {
+                badge.className = 'suggestion-badge registered';
+                badge.textContent = c.visible ? '✔ Registrado' : '👁️‍🗨️ Oculto';
+            } else if (c.is_admin) {
+                badge.className = 'suggestion-badge detected';
+                badge.textContent = '✨ Clic para añadir';
+            } else {
+                badge.className = 'suggestion-badge cached';
+                badge.textContent = 'Disponible';
+            }
 
             item.append(left, badge);
 
-            item.addEventListener('mousedown', (e) => {
+            item.addEventListener('click', (e) => {
                 e.preventDefault();
                 selectChannelSuggestion(c);
             });
@@ -2224,11 +2255,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         channelSuggestionsDropdown.classList.remove('hidden');
     }
 
+    function renderChannelSuggestions(filterText) {
+        const q = (filterText || '').toLowerCase().trim();
+        if (!q) {
+            if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
+            return;
+        }
+        const matches = knownChannelsList.filter(c =>
+            (c.title && c.title.toLowerCase().includes(q)) || String(c.id).includes(q)
+        );
+        if (matches.length > 0) {
+            renderSuggestionsList(matches, `Canales sugeridos (${matches.length})`, q);
+        } else if (channelSuggestionsDropdown) {
+            channelSuggestionsDropdown.innerHTML = `
+                <div class="channel-suggestions-header">
+                    <span>Búsqueda</span>
+                    <button type="button" class="btn-close-suggestions" title="Cerrar">✕</button>
+                </div>
+                <div class="suggestion-empty">No se encontraron canales guardados que coincidan con "${filterText.trim()}".<br>Si es un canal privado, pulsa <strong>"Detectar canales del bot"</strong> o pega el enlace del mensaje.</div>
+            `;
+            const closeBtn = channelSuggestionsDropdown.querySelector('.btn-close-suggestions');
+            if (closeBtn) closeBtn.onclick = () => channelSuggestionsDropdown.classList.add('hidden');
+            channelSuggestionsDropdown.classList.remove('hidden');
+        }
+    }
+
     function selectChannelSuggestion(c) {
         if (!inputNewChannel) return;
-        inputNewChannel.value = c.title;
+        inputNewChannel.value = c.title || c.id;
         if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
-        verifyChannelAdmin(c.id);
+
+        if (c.is_added) {
+            showChannelFeedback(`El canal "${c.title}" ya está registrado en tu lista inferior.`, 'info');
+            if (btnSubmitAddChannel) {
+                btnSubmitAddChannel.disabled = true;
+                btnSubmitAddChannel.title = 'Este canal ya está registrado';
+            }
+        } else {
+            verifyChannelAdmin(c.id);
+        }
     }
 
     async function verifyChannelAdmin(channelInput) {
@@ -2479,6 +2544,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnRefreshChannelsList) btnRefreshChannelsList.addEventListener('click', loadChannelsManager);
     if (btnSubmitAddChannel) btnSubmitAddChannel.addEventListener('click', handleAddChannel);
 
+    if (btnToggleChannelHelp && channelHelpBlock) {
+        btnToggleChannelHelp.addEventListener('click', () => {
+            const isHidden = channelHelpBlock.classList.toggle('hidden');
+            btnToggleChannelHelp.classList.toggle('active', !isHidden);
+        });
+    }
+
     if (btnDetectChannels) {
         btnDetectChannels.addEventListener('click', async () => {
             btnDetectChannels.disabled = true;
@@ -2488,16 +2560,27 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const detected = res.detected || [];
                 if (detected.length === 0) {
                     showChannelFeedback('No se detectaron canales nuevos. Asegúrate de enviar un mensaje en el canal (ej: "hola") para que el bot reciba la notificación.', 'error');
+                    if (channelSuggestionsDropdown) channelSuggestionsDropdown.classList.add('hidden');
                 } else {
-                    const knownRes = await window.TelegramAPI.getKnownChannels();
-                    knownChannelsList = knownRes.channels || [];
+                    // Actualizar lista en memoria con los detectados
+                    detected.forEach(d => {
+                        const existing = knownChannelsList.find(k => String(k.id) === String(d.id));
+                        if (!existing) {
+                            knownChannelsList.unshift(d);
+                        } else {
+                            existing.is_added = d.is_added;
+                            existing.is_admin = d.is_admin;
+                        }
+                    });
 
-                    const unadded = detected.find(d => !d.is_added);
-                    if (unadded) {
-                        selectChannelSuggestion(unadded);
-                        showChannelFeedback(`✔ Canal detectado: "${unadded.title}". Verifica si deseas añadirlo.`, 'success');
+                    // Mostrar siempre los canales detectados en el bloque de sugerencias
+                    renderSuggestionsList(detected, `🔍 Canales detectados del bot (${detected.length})`);
+
+                    const unadded = detected.filter(d => !d.is_added);
+                    if (unadded.length > 0) {
+                        showChannelFeedback(`✔ Se encontraron ${detected.length} canal(es). Haz clic sobre "${unadded[0].title}" en la lista de sugerencias para seleccionarlo y añadirlo.`, 'success');
                     } else {
-                        showChannelFeedback(`Se detectaron ${detected.length} canal(es) donde el bot está activo.`, 'info');
+                        showChannelFeedback(`Se detectaron ${detected.length} canal(es) donde el bot está activo. Ya se encuentran registrados en tu lista inferior.`, 'info');
                     }
                 }
             } catch (err) {
