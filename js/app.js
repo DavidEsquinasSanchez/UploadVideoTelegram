@@ -32,6 +32,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     const expandedTopics = new Set(); // temas desplegados en la barra lateral (clave: grupo:tema)
     const expandedChannels = new Set(); // canales expandidos (por defecto todos comprimidos)
 
+    // ------------------------------------------------------------- Catálogo SVG
+    const SVG = {
+        sun: '<svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>',
+        moon: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>',
+        chevronLeft: '<svg class="icon-svg" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>',
+        chevronRight: '<svg class="icon-svg" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>',
+        pencil: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>',
+        trash: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>',
+        check: '<svg class="icon-svg" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>',
+        cross: '<svg class="icon-svg" viewBox="0 0 24 24"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>',
+        download: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>',
+        square: '<svg class="icon-svg" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>',
+        spinner: '<svg class="icon-svg icon-spin" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>',
+        eye: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>',
+        eyeOff: '<svg class="icon-svg" viewBox="0 0 24 24"><path d="M9.88 9.88a3 3 0 1 0 4.24 4.24"/><path d="M10.73 5.08A10.43 10.43 0 0 1 12 5c7 0 10 7 10 7a13.16 13.16 0 0 1-1.67 2.68"/><path d="M6.61 6.61A13.526 13.526 0 0 0 2 12s3 7 10 7a9.74 9.74 0 0 0 5.39-1.61"/><line x1="2" x2="22" y1="2" y2="22"/></svg>'
+    };
+
     // --------------------------------------------------------------- Elementos
     const sidebar = document.getElementById('sidebar');
     const btnToggleSidebar = document.getElementById('btnToggleSidebar');
@@ -155,14 +172,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (theme === 'light') {
             document.body.classList.add('light-theme');
             if (btnToggleTheme) {
-                btnToggleTheme.textContent = '☀️';
+                btnToggleTheme.innerHTML = SVG.sun;
                 btnToggleTheme.title = 'Cambiar a modo oscuro';
                 btnToggleTheme.setAttribute('aria-label', 'Modo oscuro');
             }
         } else {
             document.body.classList.remove('light-theme');
             if (btnToggleTheme) {
-                btnToggleTheme.textContent = '🌙';
+                btnToggleTheme.innerHTML = SVG.moon;
                 btnToggleTheme.title = 'Cambiar a modo claro';
                 btnToggleTheme.setAttribute('aria-label', 'Modo claro');
             }
@@ -242,7 +259,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!sidebar) return;
         const isCollapsed = sidebar.classList.toggle('collapsed');
         if (btnToggleSidebar) {
-            btnToggleSidebar.textContent = isCollapsed ? '▶' : '◀';
+            btnToggleSidebar.innerHTML = isCollapsed ? SVG.chevronRight : SVG.chevronLeft;
             btnToggleSidebar.title = isCollapsed ? 'Descomprimir menú lateral' : 'Comprimir menú lateral';
         }
         if (!isCollapsed) {
@@ -362,8 +379,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // ---------------------------------------------------- Estado de conexión
     function setConn(state, text) {
-        connDot.className = `conn-dot conn-${state}`;
-        connText.textContent = text;
+        if (connDot) connDot.className = `conn-dot conn-${state}`;
+        if (connText) {
+            connText.className = `conn-badge conn-badge-${state}`;
+            connText.textContent = text;
+        }
     }
 
     async function checkHealth() {
@@ -377,16 +397,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
 
             if (!h.configured) {
-                setConn('error', 'Bot no configurado');
+                setConn('error', 'Sin configurar');
             } else if (!h.telegram) {
-                setConn('error', 'Telegram desconectado');
+                setConn('error', 'Desconectado');
             } else if (h.scanning) {
-                setConn('busy', 'Actualizando temas y vídeos...');
+                setConn('busy', 'Actualizando…');
             } else {
-                setConn('ok', h.bot ? `Conectado (@${h.bot})` : 'Conectado');
+                setConn('ok', 'Conectado');
             }
         } catch (error) {
-            setConn('error', error.status === 401 ? 'Sesión caducada: recarga (F5)' : 'Sin conexión con el backend');
+            setConn('error', error.status === 401 ? 'Sesión caducada' : 'Sin backend');
         }
     }
 
@@ -394,6 +414,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function init() {
         addLog("Iniciando aplicación y cargando interfaz...", "info");
         initTableResizers();
+        renderTable();
         renderDownloadsTable();
         updateBadges();
         syncHeaderCheckbox();
@@ -580,7 +601,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         btnDlTopic.className = 'btn-download-topic';
                         btnDlTopic.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar todos los archivos';
                         btnDlTopic.disabled = isDownloading;
-                        btnDlTopic.textContent = '⬇️';
+                        btnDlTopic.innerHTML = SVG.download;
                         btnDlTopic.addEventListener('click', (e) => {
                             e.stopPropagation();
                             if (isDownloading) return;
@@ -611,7 +632,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             btnDlVideo.className = 'btn-download-video';
                             btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
                             btnDlVideo.disabled = isDownloading;
-                            btnDlVideo.textContent = '⬇️';
+                            btnDlVideo.innerHTML = SVG.download;
                             btnDlVideo.addEventListener('click', async (e) => {
                                 e.stopPropagation();
                                 if (isDownloading) return;
@@ -661,7 +682,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     btnDlVideo.className = 'btn-download-video';
                     btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
                     btnDlVideo.disabled = isDownloading;
-                    btnDlVideo.textContent = '⬇️';
+                    btnDlVideo.innerHTML = SVG.download;
                     btnDlVideo.addEventListener('click', async (e) => {
                         e.stopPropagation();
                         if (isDownloading) return;
@@ -907,7 +928,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         isDownloading = locked;
 
         if (btnCancelarDescarga) {
-            btnCancelarDescarga.innerHTML = '<span class="btn-icon">⏹️</span><span class="btn-text">Cancelar descarga</span>';
+            btnCancelarDescarga.innerHTML = `<span class="btn-icon">${SVG.square}</span><span class="btn-text">Cancelar descarga</span>`;
         }
 
         checkDownloadButtonState();
@@ -1158,11 +1179,11 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!downloadsList || downloadsList.length === 0) {
             downloadsTableBody.innerHTML = `
                 <tr class="empty-downloads-row">
-                    <td colspan="5" style="text-align: center; color: var(--text-muted); padding: 36px 16px;">
-                        <div style="font-size: 1.6rem; margin-bottom: 8px;">⬇️</div>
-                        <div style="font-weight: 600; font-size: 0.95rem;">No hay descargas en la lista</div>
-                        <div style="font-size: 0.85rem; margin-top: 6px; opacity: 0.8;">
-                            Haz clic en el icono ⬇️ junto a cualquier tema o vídeo en el panel lateral para añadirlo a esta lista.
+                    <td colspan="5" class="empty-table-cell">
+                        <div class="empty-state-box">
+                            <svg class="icon-svg empty-state-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            <div class="empty-state-text">No hay descargas en la lista</div>
+                            <div class="empty-state-subtext">Haz clic en el icono de descarga junto a cualquier tema o vídeo en el panel lateral para añadirlo a esta lista.</div>
                         </div>
                     </td>
                 </tr>
@@ -1263,7 +1284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const statusText = document.createElement('span');
                 statusText.className = 'download-progress-status-text status-curso';
-                statusText.textContent = `${status} ⚙️`;
+                statusText.textContent = status;
 
                 meta.appendChild(statusText);
 
@@ -1281,12 +1302,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tdProgress.innerHTML = `<span class="status-ok">Finalizado OK</span>`;
             } else if (status === 'Pendiente') {
                 tdProgress.innerHTML = `<span class="status-pendiente">Pendiente</span>`;
-            } else if (status === 'En cola ⏳') {
-                tdProgress.innerHTML = `<span class="status-pendiente">En cola ⏳</span>`;
+            } else if (status === 'En cola ⏳' || status === 'En cola') {
+                tdProgress.innerHTML = `<span class="status-pendiente">En cola</span>`;
             } else if (status === 'Cancelado') {
-                tdProgress.innerHTML = `<span class="status-cancelado">Cancelado ⚠️</span>`;
+                tdProgress.innerHTML = `<span class="status-cancelado">Cancelado</span>`;
             } else if (status === 'Error') {
-                tdProgress.innerHTML = `<span class="status-error" title="${item.error || 'Error en descarga'}">Error ❌</span>`;
+                tdProgress.innerHTML = `<span class="status-error" title="${item.error || 'Error en descarga'}">Error</span>`;
             } else {
                 tdProgress.innerHTML = `<span>${status}</span>`;
             }
@@ -1299,9 +1320,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (!isItemActive) {
                 const btnDel = document.createElement('button');
                 btnDel.type = 'button';
-                btnDel.className = 'btn-delete-row';
-                btnDel.textContent = 'Eliminar';
-                btnDel.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Eliminar de la lista';
+                btnDel.className = 'btn-delete-row-icon';
+                btnDel.innerHTML = SVG.trash;
+                btnDel.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Eliminar archivo de la lista';
                 btnDel.disabled = isDownloading;
                 btnDel.addEventListener('click', () => {
                     if (isDownloading) return;
@@ -1419,7 +1440,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnCancelarDescarga.addEventListener('click', async () => {
             if (!isDownloading) return;
             btnCancelarDescarga.disabled = true;
-            btnCancelarDescarga.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Cancelando descarga...</span>';
+            btnCancelarDescarga.innerHTML = `<span class="btn-icon">${SVG.spinner}</span><span class="btn-text">Cancelando descarga...</span>`;
             addLog('Cancelando descarga en curso...', 'warning');
             try {
                 await window.TelegramAPI.cancelDownload();
@@ -1865,13 +1886,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnSave.type = 'button';
         btnSave.className = 'btn-save-transformed';
         btnSave.title = 'Guardar';
-        btnSave.textContent = '✔';
+        btnSave.innerHTML = SVG.check;
 
         const btnCancel = document.createElement('button');
         btnCancel.type = 'button';
         btnCancel.className = 'btn-cancel-transformed';
         btnCancel.title = 'Cancelar';
-        btnCancel.textContent = '✖';
+        btnCancel.innerHTML = SVG.cross;
 
         actionsDiv.append(btnSave, btnCancel);
 
@@ -1925,6 +1946,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderTable() {
         filesTableBody.innerHTML = '';
 
+        if (!filesToUpload || filesToUpload.length === 0) {
+            filesTableBody.innerHTML = `
+                <tr class="empty-files-row">
+                    <td colspan="4" class="empty-table-cell">
+                        <div class="empty-state-box">
+                            <svg class="icon-svg empty-state-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                            <div class="empty-state-text">No hay vídeos seleccionados para subir</div>
+                            <div class="empty-state-subtext">Selecciona la categoría y pulsa "Seleccionar vídeo(s)…" para añadir archivos a la lista.</div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            updateSortIcons();
+            updateBadges();
+            checkUploadButtonState();
+            return;
+        }
+
         sortFiles().forEach(fileObj => {
             const tr = document.createElement('tr');
 
@@ -1949,7 +1988,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             btnEdit.type = 'button';
             btnEdit.className = 'btn-edit-transformed';
             btnEdit.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Editar título transformado';
-            btnEdit.textContent = '✏️';
+            btnEdit.innerHTML = SVG.pencil;
             btnEdit.disabled = isWorkingStatus(fileObj.status) || isDownloading;
             btnEdit.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -1971,10 +2010,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             tdDelete.className = 'td-delete';
             const btn = document.createElement('button');
             btn.type = 'button';
-            btn.className = 'btn-delete-row';
+            btn.className = 'btn-delete-row-icon';
             btn.dataset.id = fileObj.id;
-            btn.textContent = 'Eliminar';
-            btn.title = isDownloading ? DOWNLOAD_LOCKED_MSG : '';
+            btn.innerHTML = SVG.trash;
+            btn.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Eliminar archivo de la lista';
             btn.disabled = isWorkingStatus(fileObj.status) || isDownloading;
             btn.addEventListener('click', () => {
                 fileToDeleteId = fileObj.id;
@@ -2527,7 +2566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnToggle.type = 'button';
                 btnToggle.className = `btn-channel-toggle ${ch.visible ? 'active' : ''}`;
                 btnToggle.title = ch.visible ? 'Haz clic para ocultar de la aplicación' : 'Haz clic para mostrar en la aplicación';
-                btnToggle.innerHTML = ch.visible ? '<span>👁️</span> Visible' : '<span>👁️‍🗨️</span> Oculto';
+                btnToggle.innerHTML = ch.visible ? `${SVG.eye} <span>Visible</span>` : `${SVG.eyeOff} <span>Oculto</span>`;
                 btnToggle.addEventListener('click', async () => {
                     btnToggle.disabled = true;
                     try {
@@ -2542,9 +2581,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // Botón Eliminar
                 const btnDelete = document.createElement('button');
                 btnDelete.type = 'button';
-                btnDelete.className = 'btn-channel-delete';
+                btnDelete.className = 'btn-channel-delete btn-delete-row-icon';
                 btnDelete.title = 'Eliminar este canal';
-                btnDelete.innerHTML = '🗑️';
+                btnDelete.innerHTML = SVG.trash;
                 btnDelete.addEventListener('click', () => {
                     channelToDelete = ch;
                     if (deleteChannelModalText) {
@@ -2685,7 +2724,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (btnToggleBotTokenVis && inputBotToken) {
         btnToggleBotTokenVis.addEventListener('click', () => {
             inputBotToken.type = inputBotToken.type === 'password' ? 'text' : 'password';
-            btnToggleBotTokenVis.textContent = inputBotToken.type === 'password' ? '👁️' : '🙈';
+            btnToggleBotTokenVis.innerHTML = inputBotToken.type === 'password' ? SVG.eye : SVG.eyeOff;
         });
     }
 
