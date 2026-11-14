@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const filesTableBody = document.getElementById('filesTableBody');
     const thOriginal = document.getElementById('thOriginal');
     const thTransformado = document.getElementById('thTransformado');
+    const thDestino = document.getElementById('thDestino');
     const thSize = document.getElementById('thSize');
 
     const logSection = document.getElementById('logSection');
@@ -481,8 +482,19 @@ document.addEventListener('DOMContentLoaded', async () => {
         return (aTitle || '').localeCompare(bTitle || '', 'es', { numeric: true, sensitivity: 'base' });
     }
 
-    const compareForUpload = (a, b) =>
-        compareTransformedTitles(a.transformedName, b.transformedName) || naturalCompare(a.originalName, b.originalName);
+    const compareForUpload = (a, b) => {
+        const catA = a.categoryName || a.categoryId || '';
+        const catB = b.categoryName || b.categoryId || '';
+        if (catA !== catB) {
+            return naturalCompare(catA, catB);
+        }
+        const topA = a.topicName || (a.topicId !== undefined && a.topicId !== null ? String(a.topicId) : '');
+        const topB = b.topicName || (b.topicId !== undefined && b.topicId !== null ? String(b.topicId) : '');
+        if (topA !== topB) {
+            return naturalCompare(topA, topB);
+        }
+        return compareTransformedTitles(a.transformedName, b.transformedName) || naturalCompare(a.originalName, b.originalName);
+    };
 
     // ---------------------------------------------------- Estado de conexión
     let lastHealthState = { state: 'unknown', key: 'header.bot_checking', fallback: 'Comprobando...' };
@@ -1915,8 +1927,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updatePendingTransformedNames() {
-        const categoryId = categoriaSelect.value;
-        const topicId = subcategoriaSelect.value || null;
         let changed = false;
 
         filesToUpload.forEach(fileObj => {
@@ -1927,7 +1937,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     partIndex: fileObj.partIndex,
                     totalParts: fileObj.totalParts
                 };
-                const newName = getTransformedName(item, categoryId, topicId);
+                const catId = fileObj.categoryId || categoriaSelect.value;
+                const topId = fileObj.topicId !== undefined ? fileObj.topicId : (subcategoriaSelect.value || null);
+                const newName = getTransformedName(item, catId, topId);
 
                 if (newName && newName !== fileObj.transformedName) {
                     fileObj.transformedName = newName;
@@ -1945,6 +1957,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     async function addFilesToQueue(items) {
         const categoryId = categoriaSelect.value;
         const topicId = subcategoriaSelect.value || null;
+        const grupo = telegramData.find(g => g.id === categoryId);
+        const tema = (grupo && grupo.temas) ? grupo.temas.find(t => String(t.id) === String(topicId)) : null;
+        const categoryName = grupo ? (grupo.titulo || grupo.nombre || categoryId) : categoryId;
+        const topicName = tema ? (tema.titulo || tema.nombre || (topicId ? `Tema ${topicId}` : null)) : null;
+        const destinationLabel = topicName ? `${categoryName} › ${topicName}` : categoryName;
 
         btnSeleccionar.disabled = true;
         btnSubir.disabled = true;
@@ -1965,6 +1982,11 @@ document.addEventListener('DOMContentLoaded', async () => {
                 totalFileSize: item.totalFileSize || item.size || 0,
                 originalName: displayName,
                 transformedName: transformedName,
+                categoryId: categoryId,
+                categoryName: categoryName,
+                topicId: topicId,
+                topicName: topicName,
+                destinationLabel: destinationLabel,
                 status: status,
                 isPart: item.isPart || false,
                 partIndex: item.partIndex,
@@ -1977,9 +1999,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
 
             if (item.isPart) {
-                addLog(`Archivo grande dividido en cola: ${item.name} [Parte ${item.partIndex}/${item.totalParts}] -> ${transformedName} [${status}]`, "info");
+                addLog(`Archivo grande dividido en cola [${destinationLabel}]: ${item.name} [Parte ${item.partIndex}/${item.totalParts}] -> ${transformedName} [${status}]`, "info");
             } else {
-                addLog(`Archivo añadido a la cola: ${item.name} -> ${transformedName} [${status}]`, "info");
+                addLog(`Archivo añadido a la cola [${destinationLabel}]: ${item.name} -> ${transformedName} [${status}]`, "info");
             }
         }
 
@@ -2032,6 +2054,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleSort('transformedName');
     });
 
+    if (thDestino) {
+        thDestino.addEventListener('click', (e) => {
+            if (e.target.closest('.resizer')) return;
+            handleSort('destinationLabel');
+        });
+    }
+
     if (thSize) {
         thSize.addEventListener('click', (e) => {
             if (e.target.closest('.resizer')) return;
@@ -2052,11 +2081,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     function updateSortIcons() {
         if (thOriginal) thOriginal.querySelector('.sort-icon').textContent = '';
         if (thTransformado) thTransformado.querySelector('.sort-icon').textContent = '';
+        if (thDestino) thDestino.querySelector('.sort-icon').textContent = '';
         if (thSize) thSize.querySelector('.sort-icon').textContent = '';
         if (currentSortColumn === 'originalName' && thOriginal) {
             thOriginal.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
         } else if (currentSortColumn === 'transformedName' && thTransformado) {
             thTransformado.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
+        } else if (currentSortColumn === 'destinationLabel' && thDestino) {
+            thDestino.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
         } else if (currentSortColumn === 'size' && thSize) {
             thSize.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
         }
@@ -2067,6 +2099,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             return [...filesToUpload].sort((a, b) => {
                 const diff = (a.size || 0) - (b.size || 0);
                 return currentSortAsc ? diff : -diff;
+            });
+        }
+        if (currentSortColumn === 'destinationLabel') {
+            return [...filesToUpload].sort((a, b) => {
+                const cmp = naturalCompare(a.destinationLabel || '', b.destinationLabel || '');
+                return currentSortAsc ? cmp : -cmp;
             });
         }
         if (!currentSortColumn || currentSortColumn === 'transformedName') {
@@ -2236,7 +2274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const emptyDesc = (window.TeleVaultI18n && window.TeleVaultI18n.t('uploads.empty_desc')) || 'Selecciona la categoría y pulsa "Seleccionar vídeo(s)…" para añadir archivos a la lista.';
             filesTableBody.innerHTML = `
                 <tr class="empty-files-row">
-                    <td colspan="5" class="empty-table-cell">
+                    <td colspan="6" class="empty-table-cell">
                         <div class="empty-state-box">
                             <svg class="icon-svg empty-state-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                             <div class="empty-state-text">${emptyTitle}</div>
@@ -2285,7 +2323,43 @@ document.addEventListener('DOMContentLoaded', async () => {
             cellWrapper.append(nameSpan, btnEdit);
             tdTransformed.appendChild(cellWrapper);
 
-            // 3. Tamaño / Info de Partición
+            // 3. Destino (Canal y/o Tema)
+            const tdDestino = document.createElement('td');
+            tdDestino.className = 'td-destination';
+
+            const destBox = document.createElement('div');
+            destBox.className = 'destination-cell-box';
+
+            const destBadge = document.createElement('span');
+            destBadge.className = 'destination-badge';
+
+            if (fileObj.topicName) {
+                const catSpan = document.createElement('span');
+                catSpan.className = 'dest-category-text';
+                catSpan.textContent = fileObj.categoryName || '';
+
+                const sepSpan = document.createElement('span');
+                sepSpan.className = 'dest-separator';
+                sepSpan.textContent = ' › ';
+
+                const topicSpan = document.createElement('span');
+                topicSpan.className = 'dest-topic-text';
+                topicSpan.textContent = fileObj.topicName;
+
+                destBadge.append(catSpan, sepSpan, topicSpan);
+                destBadge.title = fileObj.destinationLabel || `${fileObj.categoryName || ''} › ${fileObj.topicName}`;
+            } else {
+                const catSpan = document.createElement('span');
+                catSpan.className = 'dest-category-text';
+                catSpan.textContent = fileObj.categoryName || fileObj.destinationLabel || '';
+                destBadge.appendChild(catSpan);
+                destBadge.title = fileObj.categoryName || fileObj.destinationLabel || '';
+            }
+
+            destBox.appendChild(destBadge);
+            tdDestino.appendChild(destBox);
+
+            // 4. Tamaño / Info de Partición
             const tdSize = document.createElement('td');
             tdSize.className = 'td-size';
             const sizeBox = document.createElement('div');
@@ -2311,12 +2385,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
             tdSize.appendChild(sizeBox);
 
-            // 4. Estado con barra de progreso reactiva
+            // 5. Estado con barra de progreso reactiva
             const tdStatus = document.createElement('td');
             tdStatus.id = `status-${fileObj.id}`;
             renderStatusCell(tdStatus, fileObj);
 
-            // 5. Eliminar
+            // 6. Eliminar
             const tdDelete = document.createElement('td');
             tdDelete.className = 'td-delete';
             const btn = document.createElement('button');
@@ -2332,7 +2406,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             tdDelete.appendChild(btn);
 
-            tr.append(tdOriginal, tdTransformed, tdSize, tdStatus, tdDelete);
+            tr.append(tdOriginal, tdTransformed, tdDestino, tdSize, tdStatus, tdDelete);
             filesTableBody.appendChild(tr);
         });
         updateSortIcons();
@@ -2494,6 +2568,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const startedAt = performance.now();
         updateRowStatus(fileObj.id, 'Preparando...');
 
+        const destLabel = fileObj.destinationLabel || (fileObj.topicName ? `${fileObj.categoryName || ''} › ${fileObj.topicName}` : (fileObj.categoryName || ''));
         try {
             await window.TelegramAPI.uploadFile(
                 fileObj, categoryId, topicId,
@@ -2501,22 +2576,22 @@ document.addEventListener('DOMContentLoaded', async () => {
             );
             const duration = window.TelegramAPI.formatDuration((performance.now() - startedAt) / 1000);
             updateRowStatus(fileObj.id, 'Subido OK');
-            addLog(`Subida finalizada con éxito: ${fileObj.transformedName} (${duration})`, "success");
+            addLog(`Subida finalizada con éxito [${destLabel}]: ${fileObj.transformedName} (${duration})`, "success");
         } catch (error) {
             if (error.cancelled || cancelRequested) {
                 updateRowStatus(fileObj.id, 'Cancelado');
                 addLog(`Subida cancelada: ${fileObj.transformedName}`, "warning");
             } else {
                 updateRowStatus(fileObj.id, 'Error en subida');
-                addLog(`Error en ${fileObj.transformedName}: ${error.message}`, "error");
+                addLog(`Error en ${fileObj.transformedName} [${destLabel}]: ${error.message}`, "error");
             }
         }
     }
 
     async function executeUploadProcess() {
         if (uploading) return;
-        const categoryId = categoriaSelect.value;
-        const topicId = subcategoriaSelect.value || null;
+        const defaultCategoryId = categoriaSelect.value;
+        const defaultTopicId = subcategoriaSelect.value || null;
 
         uploading = true;
         cancelRequested = false;
@@ -2533,8 +2608,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         addLog("Iniciando proceso de subida...", "info");
 
         const queue = filesToUpload.filter(f => UPLOADABLE.includes(f.status)).sort(compareForUpload);
-        const grupo = telegramData.find(g => g.id === categoryId);
-        const isTopic = Boolean(topicId || (grupo && grupo.tieneTemas));
 
         await new Promise((resolve) => {
             const running = new Set();
@@ -2545,6 +2618,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                     while (queue.length > 0) {
                         const next = queue[0];
                         const isBig = (next.size || 0) > SMALL_FILE_BYTES;
+
+                        const targetCat = next.categoryId || defaultCategoryId;
+                        const targetTop = next.topicId !== undefined ? next.topicId : defaultTopicId;
+                        const grupo = telegramData.find(g => g.id === targetCat);
+                        const isTopic = Boolean(targetTop || (grupo && grupo.tieneTemas));
+
                         if (isTopic) {
                             // Para temas/series: subida estrictamente secuencial para mantener orden 01, 02.part1, 02.part2, 03...
                             if (running.size > 0) break;
@@ -2556,7 +2635,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         queue.shift();
                         running.add(next.id);
                         if (isBig) bigRunning = true;
-                        runOne(next, categoryId, topicId).finally(() => {
+                        runOne(next, targetCat, targetTop).finally(() => {
                             running.delete(next.id);
                             if (isBig) bigRunning = false;
                             pump();

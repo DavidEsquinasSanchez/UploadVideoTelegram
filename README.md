@@ -38,6 +38,7 @@ Permite a cualquier usuario transformar Telegram en su propia nube personal orga
   * Organización automatizada por **Series**, **Temporadas** y **Películas**.
   * Renombrado estandarizado y asignación de temas antes de la subida.
   * Selector múltiple de archivos con vista previa en tabla interactiva.
+  * **Cola Multi-Destino por Lotes:** Permite encolar vídeos para diferentes canales o temas dentro de la misma lista (por ejemplo, capítulos de la Temporada 1 y Temporada 2 a la vez) y subirlos todos en un único proceso secuencial y ordenado.
   * **Subidas 100% silenciosas (`silent=True`):** Envío automático sin alertas sonoras ni vibraciones para evitar avisos continuos durante subidas masivas de capítulos y partes.
 
 * 💬 **Integración Nativa con Foros y Temas de Telegram:**
