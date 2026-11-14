@@ -1176,7 +1176,7 @@ async def upload_with_retries(key, path, name, on_progress, state):
     raise last
 
 
-async def send_with_retries(key, entity, uploaded, name, topic_id, original_name=None):
+async def send_with_retries(key, entity, uploaded, name, topic_id, original_name=None, silent=True):
     last = None
     caption = name
     if original_name and original_name != name:
@@ -1184,7 +1184,7 @@ async def send_with_retries(key, entity, uploaded, name, topic_id, original_name
     for attempt in range(1, SEND_ATTEMPTS + 1):
         try:
             update_progress(key, status="Enviando a Telegram")
-            return await client.send_file(entity, uploaded, caption=caption, reply_to=topic_id)
+            return await client.send_file(entity, uploaded, caption=caption, reply_to=topic_id, silent=silent)
         except errors.FloodWaitError as e:
             last = e
             wait = e.seconds + 1
@@ -1208,7 +1208,7 @@ async def upload_and_send(key, path, name, entity, topic_id, on_progress, state,
     for full_attempt in range(2):
         uploaded = await upload_with_retries(key, path, name, on_progress, state)
         try:
-            return await send_with_retries(key, entity, uploaded, name, topic_id, original_name=original_name)
+            return await send_with_retries(key, entity, uploaded, name, topic_id, original_name=original_name, silent=True)
         except errors.RPCError as e:
             if full_attempt == 0 and _is_missing_parts(e):
                 # Telegram descartó partes ya subidas: se repite la subida completa una vez
