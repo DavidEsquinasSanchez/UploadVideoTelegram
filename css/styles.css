@@ -208,6 +208,39 @@ body {
     border-color: var(--accent);
 }
 
+.btn-header-lang {
+    gap: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    padding: 5px 8px;
+}
+
+.header-lang-code {
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    transition: color 0.2s;
+}
+
+.btn-header-lang:hover .header-lang-code {
+    color: var(--text-main);
+}
+
+/* Accesibilidad y foco visible para navegación por teclado */
+:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+button:focus-visible,
+select:focus-visible,
+input:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+}
+
 .top-header-right {
     display: flex;
     align-items: center;

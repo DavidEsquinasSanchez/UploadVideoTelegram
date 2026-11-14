@@ -66,9 +66,22 @@ Permite a cualquier usuario transformar Telegram en su propia nube personal orga
     2. Obtener `TG_API_ID` y `TG_API_HASH` en [my.telegram.org](https://my.telegram.org).
     3. Añadir el bot a canales públicos o privados y asignar permisos de Administrador.
 
+* ⚡ **Streaming de Progreso en Tiempo Real (SSE):**
+  * Comunicación reactiva cliente-servidor mediante **Server-Sent Events** (`/api/progress/stream` y `/api/download_progress/stream`).
+  * Velocidad instantánea en MB/s, porcentaje y tiempo restante estimado (ETA) sin sobrecarga de peticiones HTTP de sondeo.
+
+* 🧩 **Fraccionamiento Inteligente de Archivos Pesados (> 1.95 GB):**
+  * División automática por bloques binarios preservando el formato original sin recodificar.
+  * Reensamblado transparente e íntegro durante la descarga.
+
+* 🌐 **Soporte Multilingüe (i18n) y Accesibilidad (a11y):**
+  * Interfaz bilingüe completa (**Español** e **Inglés**) con selector dinámico en caliente sin recargar.
+  * Atajos de teclado rápidos: `Alt+1` (Subidas), `Alt+2` (Descargas), `Alt+T` (Tema), `Alt+L` (Idioma), `Esc` (Cerrar ventanas).
+  * Foco visible y atributos ARIA para soporte con lectores de pantalla.
+
 * 🌓 **Diseño Moderno y Responsivo:**
-  * Tema oscuro estilizado con paneles colapsables.
-  * Consola de **Log de Actividad** en vivo para monitorizar todas las operaciones de red.
+  * Modo oscuro y claro con paneles colapsables y redimensionables.
+  * Consola de **Log de Actividad** en vivo con filtros de eventos (Info, Éxito, Advertencia, Error).
 
 ---
 
@@ -89,11 +102,11 @@ El proyecto incluye un script inteligente (`iniciar.bat`) que se encarga de todo
 
 1. Clona el repositorio o descarga el código fuente:
    ```bash
-   git clone https://github.com/DavidEsquinasSanchez/UploadVideoTelegram.git
-   cd UploadVideoTelegram
+   git clone https://github.com/DavidEsquinasSanchez/TeleVault.git
+   cd TeleVault
    ```
 2. Haz doble clic en el archivo **`iniciar.bat`**.
-3. ¡Listo! La aplicación se iniciará automáticamente en `http://127.0.0.1:8000`.
+3. ¡Listo! La aplicación se iniciará automáticamente en `http://127.0.0.1:3000`.
 
 ---
 
@@ -101,8 +114,8 @@ El proyecto incluye un script inteligente (`iniciar.bat`) que se encarga de todo
 
 1. Clona el repositorio:
    ```bash
-   git clone https://github.com/DavidEsquinasSanchez/UploadVideoTelegram.git
-   cd UploadVideoTelegram
+   git clone https://github.com/DavidEsquinasSanchez/TeleVault.git
+   cd TeleVault
    ```
 
 2. Crea y activa un entorno virtual de Python:
@@ -119,15 +132,15 @@ El proyecto incluye un script inteligente (`iniciar.bat`) que se encarga de todo
 
 3. Instala las dependencias necesarias:
    ```bash
-   pip install -r backend/requirements.txt
+   pip install -r requirements.txt
    ```
 
-4. Ejecuta el servidor FastAPI con Uvicorn:
+4. Ejecuta el servidor FastAPI con Python:
    ```bash
-   python -m uvicorn backend.main:app --host 127.0.0.1 --port 8000
+   python backend/main.py
    ```
 
-5. Abre en tu navegador la URL: **`http://127.0.0.1:8000`**.
+5. Abre en tu navegador la URL: **`http://127.0.0.1:3000`**.
 
 ---
 
@@ -156,18 +169,19 @@ Al abrir TeleVault por primera vez, sigue estos sencillos pasos:
 ## 📁 Estructura del Proyecto
 
 ```text
-UploadVideoTelegram/
+TeleVault/
 ├── backend/
-│   ├── main.py              # API REST (FastAPI) y cliente Telegram (Telethon & Bot API)
-│   ├── requirements.txt     # Dependencias del backend de Python
+│   ├── main.py              # API REST (FastAPI), SSE streaming y cliente Telegram
+│   ├── parallel_upload.py   # Subida paralela por bloques MTProto y control de reintentos
 │   ├── channels.json        # Almacenamiento local de canales registrados (ignorado en git)
 │   └── config.json          # Almacenamiento local de configuración del bot (ignorado en git)
 ├── css/
-│   └── styles.css           # Estilos de la aplicación, temas, tablas y modales
+│   └── styles.css           # Estilos de la aplicación, temas claro/oscuro, tablas y accesibilidad
 ├── js/
-│   ├── app.js               # Lógica del frontend, subidas, descargas y navegación
-│   └── telegram.js          # Capa de comunicación HTTP con los endpoints del backend
-├── index.html               # Interfaz gráfica principal de TeleVault
+│   ├── i18n.js              # Sistema de internacionalización bilingüe (Español / Inglés)
+│   ├── app.js               # Lógica del frontend, atajos de teclado, subidas y descargas
+│   └── telegram.js          # Capa de comunicación HTTP y SSE con la API local
+├── index.html               # Interfaz gráfica principal de TeleVault v3.0.0
 ├── iniciar.bat              # Script de inicio rápido de un solo clic para Windows
 └── README.md                # Documentación del proyecto
 ```

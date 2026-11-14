@@ -203,6 +203,94 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     initTheme();
 
+    // --------------------------------------------------- Internacionalización (i18n)
+    const btnToggleLang = document.getElementById('btnToggleLang');
+    const langCurrentText = document.getElementById('langCurrentText');
+
+    function updateLangButtonText(lang) {
+        if (langCurrentText) {
+            langCurrentText.textContent = (lang || 'es').toUpperCase();
+        }
+        if (btnToggleLang && window.TeleVaultI18n) {
+            const title = window.TeleVaultI18n.t('header.lang');
+            btnToggleLang.setAttribute('title', title);
+            btnToggleLang.setAttribute('aria-label', title);
+        }
+    }
+
+    function initLanguage() {
+        if (!window.TeleVaultI18n) return;
+
+        updateLangButtonText(window.TeleVaultI18n.getLanguage());
+
+        if (btnToggleLang) {
+            btnToggleLang.addEventListener('click', () => {
+                const nextLang = window.TeleVaultI18n.toggleLanguage();
+                updateLangButtonText(nextLang);
+            });
+        }
+
+        window.addEventListener('televault:langchange', (e) => {
+            const lang = e.detail && e.detail.lang;
+            updateLangButtonText(lang);
+            renderTable();
+            renderDownloadsTable();
+            updateBadges();
+            validateForm();
+        });
+    }
+    initLanguage();
+
+    // --------------------------------------------------- Atajos de Teclado Accesibles
+    function initKeyboardShortcuts() {
+        window.addEventListener('keydown', (e) => {
+            // Ignorar atajos si se está escribiendo en campos de texto editables
+            const target = e.target;
+            const isTyping = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+
+            // Escape: cerrar el modal visible actual
+            if (e.key === 'Escape') {
+                const openModal = document.querySelector('.modal:not(.hidden)');
+                if (openModal) {
+                    openModal.classList.add('hidden');
+                    e.preventDefault();
+                    return;
+                }
+            }
+
+            if (isTyping) return;
+
+            // Alt + 1: Pestaña Subidas
+            if (e.altKey && e.key === '1') {
+                if (tabUploads) tabUploads.click();
+                e.preventDefault();
+            }
+            // Alt + 2: Pestaña Descargas
+            else if (e.altKey && e.key === '2') {
+                if (tabDownloads) tabDownloads.click();
+                e.preventDefault();
+            }
+            // Alt + T: Alternar tema claro / oscuro
+            else if (e.altKey && (e.key === 't' || e.key === 'T')) {
+                if (btnToggleTheme) btnToggleTheme.click();
+                e.preventDefault();
+            }
+            // Alt + L: Alternar idioma
+            else if (e.altKey && (e.key === 'l' || e.key === 'L')) {
+                if (btnToggleLang) btnToggleLang.click();
+                e.preventDefault();
+            }
+            // Alt + U / Ctrl + O: Abrir selector de archivos
+            else if ((e.altKey && (e.key === 'u' || e.key === 'U')) || (e.ctrlKey && (e.key === 'o' || e.key === 'O'))) {
+                if (currentTab === 'uploads' && btnElegirArchivos && !btnElegirArchivos.disabled) {
+                    btnElegirArchivos.click();
+                    e.preventDefault();
+                }
+            }
+        });
+    }
+    initKeyboardShortcuts();
+
     // --------------------------------------------------- Menú lateral colapsable y redimensionable
     const sidebarResizer = document.getElementById('sidebarResizer');
     let isResizingSidebar = false;
@@ -1179,13 +1267,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!downloadsTableBody) return;
 
         if (!downloadsList || downloadsList.length === 0) {
+            const emptyTitle = (window.TeleVaultI18n && window.TeleVaultI18n.t('downloads.empty_title')) || 'No hay descargas en la lista';
+            const emptyDesc = (window.TeleVaultI18n && window.TeleVaultI18n.t('downloads.empty_desc')) || 'Haz clic en el icono de descarga junto a cualquier tema o vídeo en el panel lateral para añadirlo a esta lista.';
             downloadsTableBody.innerHTML = `
                 <tr class="empty-downloads-row">
                     <td colspan="5" class="empty-table-cell">
                         <div class="empty-state-box">
                             <svg class="icon-svg empty-state-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-                            <div class="empty-state-text">No hay descargas en la lista</div>
-                            <div class="empty-state-subtext">Haz clic en el icono de descarga junto a cualquier tema o vídeo en el panel lateral para añadirlo a esta lista.</div>
+                            <div class="empty-state-text">${emptyTitle}</div>
+                            <div class="empty-state-subtext">${emptyDesc}</div>
                         </div>
                     </td>
                 </tr>
@@ -2070,13 +2160,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         filesTableBody.innerHTML = '';
 
         if (!filesToUpload || filesToUpload.length === 0) {
+            const emptyTitle = (window.TeleVaultI18n && window.TeleVaultI18n.t('uploads.empty_title')) || 'No hay vídeos seleccionados para subir';
+            const emptyDesc = (window.TeleVaultI18n && window.TeleVaultI18n.t('uploads.empty_desc')) || 'Selecciona la categoría y pulsa "Seleccionar vídeo(s)…" para añadir archivos a la lista.';
             filesTableBody.innerHTML = `
                 <tr class="empty-files-row">
                     <td colspan="5" class="empty-table-cell">
                         <div class="empty-state-box">
                             <svg class="icon-svg empty-state-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                            <div class="empty-state-text">No hay vídeos seleccionados para subir</div>
-                            <div class="empty-state-subtext">Selecciona la categoría y pulsa "Seleccionar vídeo(s)…" para añadir archivos a la lista.</div>
+                            <div class="empty-state-text">${emptyTitle}</div>
+                            <div class="empty-state-subtext">${emptyDesc}</div>
                         </div>
                     </td>
                 </tr>

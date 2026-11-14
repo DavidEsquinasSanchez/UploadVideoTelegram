@@ -12,37 +12,41 @@
         <!-- Cabecera Superior Principal -->
         <header class="top-header">
             <div class="top-header-left">
-                <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">
+                <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral" data-i18n-title="header.toggle_sidebar" aria-label="Comprimir menú lateral" data-i18n-aria-label="header.toggle_sidebar">
                     <svg class="icon-svg" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
                 </button>
                 <div class="brand-box">
                     <h1 class="brand-title">TeleVault</h1>
-                    <span class="brand-version-pill">v2.5.0</span>
+                    <span class="brand-version-pill">v3.0.0</span>
                 </div>
                 <div class="header-divider"></div>
                 <div class="header-action-group">
-                    <button type="button" id="btnRefresh" class="btn-header-icon" title="Recargar página">
+                    <button type="button" id="btnRefresh" class="btn-header-icon" title="Recargar página" data-i18n-title="header.refresh" aria-label="Recargar página" data-i18n-aria-label="header.refresh">
                         <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
                     </button>
-                    <button type="button" id="btnToggleTheme" class="btn-header-icon" title="Cambiar a modo claro / oscuro">
+                    <button type="button" id="btnToggleTheme" class="btn-header-icon" title="Cambiar a modo claro / oscuro" data-i18n-title="header.theme" aria-label="Cambiar tema" data-i18n-aria-label="header.theme">
                         <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
                     </button>
-                    <button type="button" id="btnOpenGuideModal" class="btn-header-icon" title="Guía de Configuración y Uso">
+                    <button type="button" id="btnToggleLang" class="btn-header-icon btn-header-lang" title="Cambiar idioma (ES/EN) · Switch language" data-i18n-title="header.lang" aria-label="Cambiar idioma" data-i18n-aria-label="header.lang">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+                        <span id="langCurrentText" class="header-lang-code">ES</span>
+                    </button>
+                    <button type="button" id="btnOpenGuideModal" class="btn-header-icon" title="Guía de Configuración y Uso" data-i18n-title="header.guide" aria-label="Guía de uso" data-i18n-aria-label="header.guide">
                         <svg class="icon-svg" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
                     </button>
-                    <button type="button" id="btnAboutProject" class="btn-header-icon" title="Acerca de TeleVault, repositorio y contacto">
+                    <button type="button" id="btnAboutProject" class="btn-header-icon" title="Acerca de TeleVault, repositorio y contacto" data-i18n-title="header.about" aria-label="Acerca de TeleVault" data-i18n-aria-label="header.about">
                         <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
                     </button>
                 </div>
             </div>
             <div class="top-header-right">
-                <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram y ver estado de conexión">
+                <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram y ver estado de conexión" data-i18n-title="header.bot_button_title" aria-label="Configurar bot de Telegram" data-i18n-aria-label="header.bot_button_title">
                     <span id="connDot" class="conn-dot conn-unknown"></span>
                     <span class="bot-icon">
                         <svg class="icon-svg" viewBox="0 0 24 24"><rect width="18" height="12" x="3" y="6" rx="2"/><path d="M12 2v4"/><circle cx="8" cy="12" r="1.5"/><circle cx="16" cy="12" r="1.5"/><path d="M9 15h6"/></svg>
                     </span>
-                    <span id="headerBotUsername">Configurar Bot</span>
-                    <span id="connText" class="conn-badge">Comprobando...</span>
+                    <span id="headerBotUsername" data-i18n="header.bot_config">Configurar Bot</span>
+                    <span id="connText" class="conn-badge" data-i18n="header.bot_checking">Comprobando...</span>
                 </button>
             </div>
         </header>
@@ -75,19 +79,19 @@
                     <!-- Sección de la Tabla de Archivos y Descargas (Ocupa el 100% del área de trabajo) -->
                     <section class="table-section">
                         <!-- Pestañas de la Tabla -->
-                        <div class="table-tabs">
-                            <button type="button" id="tabUploads" class="tab-btn active">
+                        <div class="table-tabs" role="tablist" aria-label="Secciones de trabajo">
+                            <button type="button" id="tabUploads" class="tab-btn active" role="tab" aria-selected="true" aria-controls="uploadsWrapper">
                                 <span class="tab-icon">
                                     <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                                 </span>
-                                <span class="tab-label">Subidas</span>
+                                <span class="tab-label" data-i18n="tabs.uploads">Subidas</span>
                                 <span id="badgeUploads" class="tab-badge">0</span>
                             </button>
-                            <button type="button" id="tabDownloads" class="tab-btn">
+                            <button type="button" id="tabDownloads" class="tab-btn" role="tab" aria-selected="false" aria-controls="downloadsWrapper">
                                 <span class="tab-icon">
                                     <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
                                 </span>
-                                <span class="tab-label">Descargas</span>
+                                <span class="tab-label" data-i18n="tabs.downloads">Descargas</span>
                                 <span id="badgeDownloads" class="tab-badge">0</span>
                             </button>
                         </div>
@@ -326,27 +330,27 @@
     </div>
 
     <!-- Modales -->
-    <div id="deleteModal" class="modal hidden">
+    <div id="deleteModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deleteModalText">
         <div class="modal-content">
-            <p>¿Estás seguro de eliminarlo?</p>
+            <p id="deleteModalText">¿Estás seguro de eliminarlo?</p>
             <div class="modal-actions">
                 <button id="btnConfirmDelete" class="btn-confirm">Sí</button>
                 <button id="btnCancelDelete" class="btn-cancel">No</button>
             </div>
         </div>
     </div>
-    <div id="deleteAllModal" class="modal hidden">
+    <div id="deleteAllModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deleteAllModalText">
         <div class="modal-content">
-            <p>¿Estás seguro de eliminar todos los archivos de la tabla?</p>
+            <p id="deleteAllModalText">¿Estás seguro de eliminar todos los archivos de la tabla?</p>
             <div class="modal-actions">
                 <button id="btnConfirmDeleteAll" class="btn-confirm">Sí</button>
                 <button id="btnCancelDeleteAll" class="btn-cancel">No</button>
             </div>
         </div>
     </div>
-    <div id="deleteOkModal" class="modal hidden">
+    <div id="deleteOkModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deleteOkModalText">
         <div class="modal-content">
-            <p>¿Estás seguro de eliminar los archivos subidos correctamente?</p>
+            <p id="deleteOkModalText">¿Estás seguro de eliminar los archivos subidos correctamente?</p>
             <div class="modal-actions">
                 <button id="btnConfirmDeleteOk" class="btn-confirm">Sí</button>
                 <button id="btnCancelDeleteOk" class="btn-cancel">No</button>
@@ -355,7 +359,7 @@
     </div>
 
     <!-- Modal de confirmación para descarga de tema completo -->
-    <div id="downloadTopicModal" class="modal hidden">
+    <div id="downloadTopicModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="downloadTopicModalText">
         <div class="modal-content">
             <p id="downloadTopicModalText">¿Deseas descargar todos los vídeos de este tema?</p>
             <div class="modal-actions">
@@ -366,11 +370,11 @@
     </div>
 
     <!-- Modal de Gestión de Canales -->
-    <div id="channelsModal" class="modal hidden">
+    <div id="channelsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="channelsModalTitle">
         <div class="modal-content modal-channels-content">
             <div class="modal-channels-header">
-                <h3>⚙️ Gestión de Canales</h3>
-                <button type="button" id="btnCloseChannelsModal" class="btn-modal-close" title="Cerrar">✕</button>
+                <h3 id="channelsModalTitle" data-i18n="modals.channels.title">⚙️ Gestión de Canales</h3>
+                <button type="button" id="btnCloseChannelsModal" class="btn-modal-close" title="Cerrar" data-i18n-title="modals.close" aria-label="Cerrar ventana" data-i18n-aria-label="modals.close">✕</button>
             </div>
             
             <div class="modal-channels-body">
@@ -423,7 +427,7 @@
     </div>
 
     <!-- Modal de confirmación para eliminar canal -->
-    <div id="deleteChannelModal" class="modal hidden">
+    <div id="deleteChannelModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="deleteChannelModalText">
         <div class="modal-content">
             <p id="deleteChannelModalText">¿Estás seguro de que deseas eliminar este canal?</p>
             <div class="modal-actions">
@@ -434,11 +438,11 @@
     </div>
 
     <!-- Modal de Configuración del Bot de Telegram -->
-    <div id="botConfigModal" class="modal hidden">
+    <div id="botConfigModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="botConfigModalTitle">
         <div class="modal-content modal-bot-content">
             <div class="modal-channels-header">
-                <h3>🤖 Configuración del Bot de Telegram</h3>
-                <button type="button" id="btnCloseBotConfigModal" class="btn-modal-close" title="Cerrar">✕</button>
+                <h3 id="botConfigModalTitle" data-i18n="modals.bot.title">🤖 Configuración del Bot de Telegram</h3>
+                <button type="button" id="btnCloseBotConfigModal" class="btn-modal-close" title="Cerrar" data-i18n-title="modals.close" aria-label="Cerrar ventana" data-i18n-aria-label="modals.close">✕</button>
             </div>
             <div class="modal-bot-body">
                 <div class="bot-info-card">
@@ -494,14 +498,14 @@
     </div>
 
     <!-- Modal de Guías de Uso y Configuración -->
-    <div id="guideModal" class="modal hidden">
+    <div id="guideModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="guideModalTitle">
         <div class="modal-content modal-guide-content">
             <div class="modal-channels-header">
                 <div class="modal-guide-title-box">
-                    <h3>📖 Guía de Configuración y Uso</h3>
+                    <h3 id="guideModalTitle" data-i18n="modals.guide.title">📖 Guía de Configuración y Uso</h3>
                     <p class="modal-guide-subtitle">Aprende paso a paso cómo vincular tu bot, obtener tus claves de Telegram y gestionar tus canales en TeleVault.</p>
                 </div>
-                <button type="button" id="btnCloseGuideModal" class="btn-modal-close" title="Cerrar">✕</button>
+                <button type="button" id="btnCloseGuideModal" class="btn-modal-close" title="Cerrar" data-i18n-title="modals.close" aria-label="Cerrar ventana" data-i18n-aria-label="modals.close">✕</button>
             </div>
             
             <div class="modal-guide-body">
@@ -817,20 +821,20 @@
     </div>
 
     <!-- Modal Acerca de TeleVault / Información del Proyecto -->
-    <div id="aboutModal" class="modal hidden">
+    <div id="aboutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="aboutModalTitle">
         <div class="modal-content modal-about-content">
             <div class="modal-channels-header">
                 <div class="modal-about-title-box">
-                    <h3>🚀 Acerca de TeleVault</h3>
-                    <span class="about-version-badge">v2.5.0</span>
+                    <h3 id="aboutModalTitle" data-i18n="modals.about.title">🚀 Acerca de TeleVault</h3>
+                    <span class="about-version-badge">v3.0.0</span>
                 </div>
-                <button type="button" id="btnCloseAboutModal" class="btn-modal-close" title="Cerrar">✕</button>
+                <button type="button" id="btnCloseAboutModal" class="btn-modal-close" title="Cerrar" data-i18n-title="modals.close" aria-label="Cerrar ventana" data-i18n-aria-label="modals.close">✕</button>
             </div>
 
             <div class="modal-about-body">
                 <div class="about-section">
-                    <h4 class="about-section-title">💡 Objetivo del Proyecto</h4>
-                    <p class="about-desc">
+                    <h4 class="about-section-title" data-i18n="modals.about.obj_title">💡 Objetivo del Proyecto</h4>
+                    <p class="about-desc" data-i18n="modals.about.obj_desc">
                         <strong>TeleVault</strong> es una herramienta diseñada para simplificar y automatizar por completo la gestión, el fraccionamiento inteligente en partes, la subida y la descarga masiva de contenido multimedia (series, temporadas, películas y vídeos) hacia y desde canales y foros de <strong>Telegram</strong>. Preserva fielmente la calidad, integridad y extensión original de tus archivos sin coste alguno y con control 100% local.
                     </p>
                 </div>
@@ -839,8 +843,8 @@
                     <a href="https://github.com/DavidEsquinasSanchez/TeleVault" target="_blank" rel="noopener noreferrer" class="btn-about-repo" id="btnOpenGitHubRepo" title="Abrir repositorio oficial en GitHub">
                         <span class="about-repo-icon">🐙</span>
                         <div class="about-repo-info">
-                            <span class="about-repo-title">Repositorio Oficial en GitHub</span>
-                            <span class="about-repo-sub">Ver código fuente, ramas y novedades del proyecto</span>
+                            <span class="about-repo-title" data-i18n="modals.about.repo_title">Repositorio Oficial en GitHub</span>
+                            <span class="about-repo-sub" data-i18n="modals.about.repo_sub">Ver código fuente, ramas y novedades del proyecto</span>
                         </div>
                         <span class="about-repo-arrow">↗</span>
                     </a>
@@ -853,7 +857,7 @@
             </div>
 
             <div class="about-modal-actions">
-                <button type="button" id="btnConfirmCloseAboutModal" class="btn-primary-action">
+                <button type="button" id="btnConfirmCloseAboutModal" class="btn-primary-action" data-i18n="modals.close">
                     Cerrar
                 </button>
             </div>
@@ -861,6 +865,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="js/i18n.js"></script>
     <script src="js/telegram.js"></script>
     <script src="js/app.js"></script>
 </body>
