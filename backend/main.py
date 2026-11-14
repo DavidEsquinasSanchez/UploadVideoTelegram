@@ -18,14 +18,15 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from urllib.parse import parse_qs
 import uuid
 from collections import deque
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, Form, HTTPException
-from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi import FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from starlette.datastructures import MutableHeaders
 from telethon import TelegramClient, errors, functions, types, utils
@@ -101,15 +102,23 @@ LOG_DIR.mkdir(parents=True, exist_ok=True)
 TEMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def purge_temp_dir():
+def purge_temp_dir(max_age_seconds: Optional[float] = None):
     """Elimina fragmentos temporales huérfanos que hayan podido quedar en disco."""
-    if TEMP_DIR.is_dir():
-        for f in TEMP_DIR.iterdir():
-            if f.is_file():
+    if not TEMP_DIR.is_dir():
+        return
+    now = time.time()
+    for f in TEMP_DIR.iterdir():
+        if f.is_file():
+            if max_age_seconds is not None:
                 try:
-                    f.unlink()
+                    if now - f.stat().st_mtime < max_age_seconds:
+                        continue
                 except Exception:
                     pass
+            try:
+                f.unlink()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -358,8 +367,16 @@ class SecurityMiddleware:
             origin = headers.get("origin")
             if origin is not None and origin not in ALLOWED_ORIGINS:
                 denied = (403, "Origen no permitido")
-            elif not secrets.compare_digest(headers.get("x-api-token", ""), API_TOKEN):
-                denied = (401, "Token inválido o ausente: recarga la página")
+            else:
+                token_hdr = headers.get("x-api-token", "")
+                token_query = ""
+                qs = scope.get("query_string", b"").decode("latin-1")
+                if "token=" in qs:
+                    params = parse_qs(qs)
+                    token_query = params.get("token", [""])[0]
+                token_to_check = token_hdr or token_query
+                if not secrets.compare_digest(token_to_check, API_TOKEN):
+                    denied = (401, "Token inválido o ausente: recarga la página")
 
         if denied:
             log.warning("Petición rechazada (%s) %s %s", denied[1], scope.get("method"), path)
@@ -1150,6 +1167,11 @@ async def upload_with_retries(key, path, name, on_progress, state):
             log.warning("Subida de '%s' interrumpida (%s). Reanudo en %ss (intento %s/%s)",
                         name, public_error(e), wait, attempt + 1, UPLOAD_ATTEMPTS)
             update_progress(key, status=f"Reintentando ({attempt}/{UPLOAD_ATTEMPTS - 1}) en {wait}s")
+            if client and not client.is_connected():
+                try:
+                    await client.connect()
+                except Exception as ce:
+                    log.warning("No se pudo reconectar de inmediato: %s", public_error(ce))
             await asyncio.sleep(wait)
     raise last
 
@@ -1173,6 +1195,11 @@ async def send_with_retries(key, entity, uploaded, name, topic_id, original_name
             last = e
             if attempt == SEND_ATTEMPTS:
                 break
+            if client and not client.is_connected():
+                try:
+                    await client.connect()
+                except Exception as ce:
+                    log.warning("No se pudo reconectar de inmediato: %s", public_error(ce))
             await asyncio.sleep(min(2 ** attempt, 20))
     raise last
 
@@ -1238,9 +1265,15 @@ async def start_and_wait(key, path, size, name, chat_id, topic_id, file_id=None,
     if key in active_uploads and active_uploads[key] != asyncio.current_task():
         raise HTTPException(409, "Este archivo ya se está subiendo")
     purge_progress()
+    purge_temp_dir(max_age_seconds=600)
     task = asyncio.create_task(run_upload(key, path, size, name, chat_id, topic_id, file_id, original_name=original_name))
     active_uploads[key] = task
-    await asyncio.wait({task})              # si el navegador se desconecta, la subida continúa
+    try:
+        await asyncio.wait({task})              # si el navegador se desconecta, la subida continúa
+    except asyncio.CancelledError:
+        if key in cancelled_uploads and not task.done():
+            task.cancel()
+        raise
     if task.cancelled() or key in cancelled_uploads:
         update_progress(key, percent=0, status="Cancelado")
         raise HTTPException(409, "Cancelado")
@@ -1761,6 +1794,60 @@ async def get_progress(key: str):
     return {"percent": entry.get("percent", 0), "status": status, "eta": eta, "speed": speed}
 
 
+@app.get("/api/progress/stream/{key}")
+async def stream_progress(key: str, request: Request):
+    """Emite eventos SSE con el progreso en tiempo real de una subida específica."""
+    async def event_generator():
+        idle_cycles = 0
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                entry = progress.get(key)
+                if not entry:
+                    payload = {"percent": 0, "status": "Pendiente...", "eta": None, "speed": None}
+                else:
+                    status = entry.get("status", "")
+                    tracker = trackers.get(key)
+                    is_uploading = (status == "Subiendo a Telegram")
+                    eta = tracker.eta() if (tracker and is_uploading) else None
+                    speed = tracker.speed() if (tracker and is_uploading) else None
+                    payload = {
+                        "percent": entry.get("percent", 0),
+                        "status": status,
+                        "eta": eta,
+                        "speed": speed,
+                    }
+
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+                st = payload.get("status", "")
+                is_terminal = (
+                    st in ("Completado", "Cancelado")
+                    or st.startswith("Error:")
+                    or (key not in active_uploads and payload.get("percent") == 100)
+                )
+                if is_terminal:
+                    idle_cycles += 1
+                    if idle_cycles >= 2:
+                        break
+
+                await asyncio.sleep(0.35)
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
+
+
 @app.post("/api/upload")
 async def upload_selected(
     fileId: str = Form(...),
@@ -2119,15 +2206,17 @@ async def run_download_task(chat_id: int, items_to_download: list, default_dest_
 
                 add_download_log(f"[ÉXITO] Guardado archivo completo: '{final_name}'", "success")
 
-            except asyncio.CancelledError:
-                raise
-            except Exception as e:
+            except (asyncio.CancelledError, Exception) as e:
                 for p in downloaded_temp_files:
-                    if p.is_file():
+                    if isinstance(p, Path) and p.is_file():
                         try:
                             p.unlink()
+                            log.info("Archivo temporal de descarga eliminado tras error o cancelación: %s", p.name)
                         except Exception:
                             pass
+                downloaded_temp_files.clear()
+                if isinstance(e, asyncio.CancelledError):
+                    raise
                 if curr_queue_item:
                     curr_queue_item["status"] = "Error"
                     curr_queue_item["error"] = str(e)
@@ -2385,6 +2474,53 @@ async def get_download_progress():
         "error": download_state["error"],
         "logs": download_state["logs"][-25:]
     }
+
+
+@app.get("/api/download_progress/stream")
+async def stream_download_progress(request: Request):
+    """Emite eventos SSE con el progreso en tiempo real de las descargas en cola."""
+    async def event_generator():
+        idle_cycles = 0
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                payload = {
+                    "active": download_state["active"],
+                    "status": download_state["status"],
+                    "percent": download_state["percent"],
+                    "eta": download_state["eta"],
+                    "speed": download_state.get("speed"),
+                    "current_file": download_state["current_file"],
+                    "file_index": download_state["file_index"],
+                    "total_files": download_state["total_files"],
+                    "dest_dir": download_state.get("dest_dir", ""),
+                    "queue": download_state.get("queue", []),
+                    "error": download_state["error"],
+                    "logs": download_state["logs"][-25:]
+                }
+
+                yield f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+                if not payload["active"]:
+                    idle_cycles += 1
+                    if idle_cycles >= 2:
+                        break
+
+                await asyncio.sleep(0.4)
+        except asyncio.CancelledError:
+            pass
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        }
+    )
 
 
 # Archivos estáticos: solo estas carpetas (nunca la raíz, para no exponer backend/ ni la sesión)
