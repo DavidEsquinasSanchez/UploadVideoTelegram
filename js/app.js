@@ -162,6 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     let isDownloading = false;
     let pendingTopicDownload = null;
     let downloadPollInterval = null;
+    let downloadEventSource = null;
     let seenDownloadLogs = new Set();
     let currentTab = 'uploads';
     let downloadsList = [];
@@ -1471,91 +1472,130 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
+    function stopDownloadTracking() {
+        if (downloadEventSource) {
+            try { downloadEventSource.close(); } catch (e) {}
+            downloadEventSource = null;
+        }
+        if (downloadPollInterval) {
+            clearInterval(downloadPollInterval);
+            downloadPollInterval = null;
+        }
+    }
+
+    function applyDownloadProgressData(prog) {
+        if (!prog) return;
+
+        if (prog.queue && Array.isArray(prog.queue)) {
+            prog.queue.forEach(qItem => {
+                const localItem = downloadsList.find(it => 
+                    (qItem.id && it.id === qItem.id) ||
+                    (qItem.original_name && it.name && it.name.toLowerCase() === qItem.original_name.toLowerCase()) ||
+                    (it.name && qItem.name && it.name.toLowerCase() === qItem.name.toLowerCase())
+                );
+                if (localItem) {
+                    if (qItem.name && localItem.name !== qItem.name) {
+                        localItem.name = qItem.name;
+                    }
+                    localItem.status = qItem.status;
+                    localItem.percent = qItem.percent;
+                    localItem.speed = qItem.speed;
+                    localItem.eta = qItem.eta;
+                    localItem.dest = qItem.dest || localItem.dest;
+                    localItem.error = qItem.error;
+                    if (qItem.status === 'Completado' || qItem.status === 'Finalizado OK') {
+                        localItem.checked = false;
+                    }
+                }
+            });
+            renderDownloadsTable(prog);
+            updateBadges();
+            checkDownloadButtonState();
+        }
+
+        if (prog.logs && Array.isArray(prog.logs)) {
+            prog.logs.forEach(l => {
+                const logKey = `${l.ts}_${l.msg}`;
+                if (!seenDownloadLogs.has(logKey)) {
+                    seenDownloadLogs.add(logKey);
+                    addLog(l.msg, l.type || 'info');
+                }
+            });
+        }
+
+        if (!prog.active) {
+            stopDownloadTracking();
+            if (prog.queue && Array.isArray(prog.queue)) {
+                prog.queue.forEach(qItem => {
+                    const localItem = downloadsList.find(it => 
+                        (qItem.id && it.id === qItem.id) ||
+                        (qItem.original_name && it.name && it.name.toLowerCase() === qItem.original_name.toLowerCase()) ||
+                        (it.name && qItem.name && it.name.toLowerCase() === qItem.name.toLowerCase())
+                    );
+                    if (localItem) {
+                        if (qItem.name && localItem.name !== qItem.name) {
+                            localItem.name = qItem.name;
+                        }
+                        localItem.status = qItem.status;
+                        localItem.percent = qItem.percent;
+                        localItem.speed = qItem.speed;
+                        localItem.eta = qItem.eta;
+                        localItem.dest = qItem.dest || localItem.dest;
+                        localItem.error = qItem.error;
+                        if (qItem.status === 'Completado' || qItem.status === 'Finalizado OK') {
+                            localItem.checked = false;
+                        }
+                    }
+                });
+            }
+            setDownloadLock(false);
+            renderDownloadsTable(prog);
+            updateBadges();
+            syncHeaderCheckbox();
+            checkDownloadButtonState();
+            if (prog.error) {
+                addLog(`Descarga finalizada con error: ${prog.error}`, 'error');
+            }
+        }
+    }
+
     function startDownloadPolling() {
-        if (downloadPollInterval) clearInterval(downloadPollInterval);
+        stopDownloadTracking();
         seenDownloadLogs.clear();
 
-        downloadPollInterval = setInterval(async () => {
-            try {
-                const prog = await window.TelegramAPI.getDownloadProgress();
-                if (!prog) return;
-
-                if (prog.queue && Array.isArray(prog.queue)) {
-                    prog.queue.forEach(qItem => {
-                        const localItem = downloadsList.find(it => 
-                            (qItem.id && it.id === qItem.id) ||
-                            (qItem.original_name && it.name && it.name.toLowerCase() === qItem.original_name.toLowerCase()) ||
-                            (it.name && qItem.name && it.name.toLowerCase() === qItem.name.toLowerCase())
-                        );
-                        if (localItem) {
-                            if (qItem.name && localItem.name !== qItem.name) {
-                                localItem.name = qItem.name;
-                            }
-                            localItem.status = qItem.status;
-                            localItem.percent = qItem.percent;
-                            localItem.speed = qItem.speed;
-                            localItem.eta = qItem.eta;
-                            localItem.dest = qItem.dest || localItem.dest;
-                            localItem.error = qItem.error;
-                            if (qItem.status === 'Completado' || qItem.status === 'Finalizado OK') {
-                                localItem.checked = false;
-                            }
-                        }
-                    });
-                    renderDownloadsTable(prog);
-                    updateBadges();
-                    checkDownloadButtonState();
+        const startFallback = () => {
+            if (downloadPollInterval) return;
+            downloadPollInterval = setInterval(async () => {
+                try {
+                    const prog = await window.TelegramAPI.getDownloadProgress();
+                    applyDownloadProgressData(prog);
+                } catch (e) {
+                    // Errores temporales de red/sondeo
                 }
+            }, 750);
+        };
 
-                if (prog.logs && Array.isArray(prog.logs)) {
-                    prog.logs.forEach(l => {
-                        const logKey = `${l.ts}_${l.msg}`;
-                        if (!seenDownloadLogs.has(logKey)) {
-                            seenDownloadLogs.add(logKey);
-                            addLog(l.msg, l.type || 'info');
-                        }
-                    });
-                }
-
-                if (!prog.active) {
-                    clearInterval(downloadPollInterval);
-                    downloadPollInterval = null;
-                    if (prog.queue && Array.isArray(prog.queue)) {
-                        prog.queue.forEach(qItem => {
-                            const localItem = downloadsList.find(it => 
-                                (qItem.id && it.id === qItem.id) ||
-                                (qItem.original_name && it.name && it.name.toLowerCase() === qItem.original_name.toLowerCase()) ||
-                                (it.name && qItem.name && it.name.toLowerCase() === qItem.name.toLowerCase())
-                            );
-                            if (localItem) {
-                                if (qItem.name && localItem.name !== qItem.name) {
-                                    localItem.name = qItem.name;
-                                }
-                                localItem.status = qItem.status;
-                                localItem.percent = qItem.percent;
-                                localItem.speed = qItem.speed;
-                                localItem.eta = qItem.eta;
-                                localItem.dest = qItem.dest || localItem.dest;
-                                localItem.error = qItem.error;
-                                if (qItem.status === 'Completado' || qItem.status === 'Finalizado OK') {
-                                    localItem.checked = false;
-                                }
-                            }
-                        });
+        // Preferir streaming en tiempo real vía SSE
+        if (window.TelegramAPI && typeof window.TelegramAPI.createDownloadProgressSource === 'function') {
+            downloadEventSource = window.TelegramAPI.createDownloadProgressSource(
+                (data) => {
+                    applyDownloadProgressData(data);
+                },
+                () => {
+                    // Si SSE experimenta error o desconexión, fallback fluido a sondeo HTTP
+                    if (downloadEventSource) {
+                        try { downloadEventSource.close(); } catch (e) {}
+                        downloadEventSource = null;
                     }
-                    setDownloadLock(false);
-                    renderDownloadsTable(prog);
-                    updateBadges();
-                    syncHeaderCheckbox();
-                    checkDownloadButtonState();
-                    if (prog.error) {
-                        addLog(`Descarga finalizada con error: ${prog.error}`, 'error');
-                    }
+                    startFallback();
                 }
-            } catch (e) {
-                // Errores temporales de red/sondeo
+            );
+            if (!downloadEventSource) {
+                startFallback();
             }
-        }, 750);
+        } else {
+            startFallback();
+        }
     }
 
     // ------------------------------------------------- Nombres de episodio/serie

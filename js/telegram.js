@@ -207,7 +207,7 @@ const TelegramAPI = {
         return await response.json();
     },
 
-    // Consulta el progreso y estado actual de la descarga
+    // Consulta el progreso y estado actual de la descarga (vía HTTP polling tradicional)
     async getDownloadProgress() {
         try {
             const response = await apiFetch('/download_progress');
@@ -215,6 +215,29 @@ const TelegramAPI = {
             return await response.json();
         } catch (e) {
             return { active: false };
+        }
+    },
+
+    // Suscripción en tiempo real vía Server-Sent Events (SSE) para el progreso de descargas
+    createDownloadProgressSource(onUpdate, onError) {
+        if (typeof EventSource === 'undefined') return null;
+        try {
+            const sseUrl = `${API_BASE_URL}/download_progress/stream?token=${encodeURIComponent(API_TOKEN)}`;
+            const es = new EventSource(sseUrl);
+            es.onmessage = (event) => {
+                try {
+                    const data = JSON.parse(event.data);
+                    if (onUpdate) onUpdate(data);
+                } catch (e) {
+                    // Ignorar json malformado ocasional
+                }
+            };
+            es.onerror = (err) => {
+                if (onError) onError(err);
+            };
+            return es;
+        } catch (e) {
+            return null;
         }
     },
 
@@ -272,37 +295,84 @@ const TelegramAPI = {
     },
 
     // El archivo lo lee el backend directamente del disco (elegido con el selector nativo)
+    // Utiliza SSE en tiempo real para el seguimiento del progreso con fallback automático a polling HTTP
     async uploadFile(fileItem, categoryId, topicId, onProgress) {
         const key = fileItem.id;
         let active = true;
         const abortController = new AbortController();
         uploadAbortControllers.set(key, abortController);
 
-        const poll = async () => {
-            try {
-                const res = await apiFetch(`/progress/${encodeURIComponent(key)}`);
-                if (!active || !res.ok) return;
-                const data = await res.json();
-                if (!active) return;
-                if (data.status === 'Cancelado') {
-                    abortController.abort();
-                    return;
-                }
-                if (data.status === 'Subiendo a Telegram') {
-                    const resto = (data.eta === null || data.eta === undefined)
-                        ? 'calculando...'
-                        : `quedan ${TelegramAPI.formatDuration(data.eta)}`;
-                    onProgress(`Subiendo... ${data.percent}% · ${resto}`, data);
-                } else if (data.status.startsWith('Error:')) {
-                    onProgress('Fallo interno', data);
-                } else {
-                    onProgress(data.status, data);
-                }
-            } catch (e) {
-                // errores temporales del sondeo: se ignoran
+        let eventSource = null;
+        let pollInterval = null;
+
+        const handleProgressData = (data) => {
+            if (!active || !data) return;
+            if (data.status === 'Cancelado') {
+                abortController.abort();
+                return;
+            }
+            if (data.status === 'Subiendo a Telegram') {
+                const resto = (data.eta === null || data.eta === undefined)
+                    ? 'calculando...'
+                    : `quedan ${TelegramAPI.formatDuration(data.eta)}`;
+                onProgress(`Subiendo... ${data.percent}% · ${resto}`, data);
+            } else if (data.status && data.status.startsWith('Error:')) {
+                onProgress('Fallo interno', data);
+            } else {
+                onProgress(data.status, data);
             }
         };
-        const pollInterval = setInterval(poll, 700);
+
+        const startPollingFallback = () => {
+            if (pollInterval || !active) return;
+            const poll = async () => {
+                try {
+                    const res = await apiFetch(`/progress/${encodeURIComponent(key)}`);
+                    if (!active || !res.ok) return;
+                    const data = await res.json();
+                    handleProgressData(data);
+                } catch (e) {
+                    // errores temporales del sondeo: se ignoran
+                }
+            };
+            pollInterval = setInterval(poll, 700);
+            poll();
+        };
+
+        // Iniciar streaming SSE de progreso en tiempo real
+        if (typeof EventSource !== 'undefined') {
+            try {
+                const sseUrl = `${API_BASE_URL}/progress/stream/${encodeURIComponent(key)}?token=${encodeURIComponent(API_TOKEN)}`;
+                eventSource = new EventSource(sseUrl);
+                eventSource.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        handleProgressData(data);
+                        const st = data.status || '';
+                        if (st === 'Completado' || st === 'Cancelado' || st.startsWith('Error:')) {
+                            if (eventSource) {
+                                eventSource.close();
+                                eventSource = null;
+                            }
+                        }
+                    } catch (e) {}
+                };
+                eventSource.onerror = () => {
+                    // Si el streaming SSE se corta o falla, activar fallback a polling HTTP sin interrumpir la subida
+                    if (eventSource) {
+                        eventSource.close();
+                        eventSource = null;
+                    }
+                    if (active && !pollInterval) {
+                        startPollingFallback();
+                    }
+                };
+            } catch (e) {
+                startPollingFallback();
+            }
+        } else {
+            startPollingFallback();
+        }
 
         try {
             const formData = new FormData();
@@ -332,10 +402,18 @@ const TelegramAPI = {
             throw err;
         } finally {
             active = false;
-            clearInterval(pollInterval);
+            if (eventSource) {
+                try { eventSource.close(); } catch (e) {}
+                eventSource = null;
+            }
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
             uploadAbortControllers.delete(key);
         }
     }
 };
 
+TelegramAPI.apiToken = API_TOKEN;
 window.TelegramAPI = TelegramAPI;
