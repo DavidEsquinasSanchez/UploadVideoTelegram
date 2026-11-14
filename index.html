@@ -12,22 +12,38 @@
         <!-- Cabecera Superior Principal -->
         <header class="top-header">
             <div class="top-header-left">
-                <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">◀</button>
-                <h1 class="brand-title">TeleVault</h1>
-                <button type="button" id="btnRefresh" class="btn-header-icon" title="Recargar página">🔄</button>
-                <button type="button" id="btnToggleTheme" class="btn-header-icon" title="Cambiar a modo claro / oscuro">🌙</button>
-                <button type="button" id="btnOpenGuideModal" class="btn-header-icon" title="Guía de Configuración y Uso">📖</button>
-                <button type="button" id="btnAboutProject" class="btn-header-icon" title="Acerca de TeleVault, repositorio y contacto">❗</button>
+                <button type="button" id="btnToggleSidebar" class="btn-sidebar-toggle" title="Comprimir/Descomprimir menú lateral">
+                    <svg class="icon-svg" viewBox="0 0 24 24"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M9 3v18"/></svg>
+                </button>
+                <div class="brand-box">
+                    <h1 class="brand-title">TeleVault</h1>
+                    <span class="brand-version-pill">v2.3.0</span>
+                </div>
+                <div class="header-divider"></div>
+                <div class="header-action-group">
+                    <button type="button" id="btnRefresh" class="btn-header-icon" title="Recargar página">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 21h5v-5"/></svg>
+                    </button>
+                    <button type="button" id="btnToggleTheme" class="btn-header-icon" title="Cambiar a modo claro / oscuro">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                    </button>
+                    <button type="button" id="btnOpenGuideModal" class="btn-header-icon" title="Guía de Configuración y Uso">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+                    </button>
+                    <button type="button" id="btnAboutProject" class="btn-header-icon" title="Acerca de TeleVault, repositorio y contacto">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                    </button>
+                </div>
             </div>
             <div class="top-header-right">
-                <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram">
-                    <span class="bot-icon">🤖</span>
-                    <span id="headerBotUsername">Configurar Bot</span>
-                </button>
-                <div class="conn-line" title="Estado de la conexión con el backend y con Telegram">
+                <button type="button" id="btnConfigBot" class="btn-header-bot" title="Configurar bot de Telegram y ver estado de conexión">
                     <span id="connDot" class="conn-dot conn-unknown"></span>
-                    <span id="connText">Comprobando conexión...</span>
-                </div>
+                    <span class="bot-icon">
+                        <svg class="icon-svg" viewBox="0 0 24 24"><rect width="18" height="12" x="3" y="6" rx="2"/><path d="M12 2v4"/><circle cx="8" cy="12" r="1.5"/><circle cx="16" cy="12" r="1.5"/><path d="M9 15h6"/></svg>
+                    </span>
+                    <span id="headerBotUsername">Configurar Bot</span>
+                    <span id="connText" class="conn-badge">Comprobando...</span>
+                </button>
             </div>
         </header>
 
@@ -37,8 +53,12 @@
                 <div class="sidebar-header">
                     <span class="sidebar-title">Canales</span>
                     <div class="sidebar-header-actions">
-                        <button type="button" id="btnManageChannels" class="btn-sidebar-icon" title="Gestionar canales">⚙️</button>
-                        <button type="button" id="btnSidebarCollapse" class="btn-sidebar-collapse" title="Comprimir menú lateral">◀</button>
+                        <button type="button" id="btnManageChannels" class="btn-sidebar-icon" title="Gestionar canales">
+                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button type="button" id="btnSidebarCollapse" class="btn-sidebar-collapse" title="Comprimir menú lateral">
+                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></svg>
+                        </button>
                     </div>
                 </div>
                 <div id="sidebarGroups" class="sidebar-content">
@@ -57,12 +77,16 @@
                         <!-- Pestañas de la Tabla -->
                         <div class="table-tabs">
                             <button type="button" id="tabUploads" class="tab-btn active">
-                                <span class="tab-icon">⬆️</span>
+                                <span class="tab-icon">
+                                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                                </span>
                                 <span class="tab-label">Subidas</span>
                                 <span id="badgeUploads" class="tab-badge">0</span>
                             </button>
                             <button type="button" id="tabDownloads" class="tab-btn">
-                                <span class="tab-icon">⬇️</span>
+                                <span class="tab-icon">
+                                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                                </span>
                                 <span class="tab-label">Descargas</span>
                                 <span id="badgeDownloads" class="tab-badge">0</span>
                             </button>
@@ -114,7 +138,9 @@
                                                     <input type="text" id="temporada" class="toolbar-input input-short" placeholder="Ej: 1">
                                                 </div>
                                                 <button type="button" id="btnCrearTema" class="btn-secondary btn-compact" disabled title="Crear nuevo tema en el canal">
-                                                    <span class="btn-icon">➕</span> Crear Tema
+                                                    <span class="btn-icon">
+                                                        <svg class="icon-svg" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                                                    </span> Crear Tema
                                                 </button>
                                             </div>
                                         </div>
@@ -122,26 +148,41 @@
 
                                     <!-- Fila 2: Archivos y Acciones de Subida -->
                                     <div class="upload-toolbar-row upload-row-actions">
-                                        <div class="upload-actions-left">
+                                        <div class="upload-actions-workflow">
                                             <button type="button" id="btnSeleccionar" class="btn-secondary btn-pick-files" disabled>
-                                                <span class="btn-icon">🎬</span> Seleccionar vídeo(s)…
-                                            </button>
-                                            <button type="button" id="btnCancelar" class="btn-cancel-upload btn-upload-sub hidden">
-                                                <span class="btn-icon">⏹️</span> Cancelar subida
-                                            </button>
-                                            <button type="button" id="btnReintentar" class="btn-secondary btn-upload-sub" disabled>
-                                                <span class="btn-icon">🔄</span> Reintentar
+                                                <span class="btn-icon">
+                                                    <svg class="icon-svg" viewBox="0 0 24 24"><rect width="20" height="15" x="2" y="4.5" rx="2"/><polyline points="8 4.5 12 9.5 16 4.5"/><line x1="2" x2="22" y1="9.5" y2="9.5"/></svg>
+                                                </span> Seleccionar vídeo(s)…
                                             </button>
                                             <button type="button" id="btnSubir" class="btn-upload-primary" disabled>
-                                                <span class="btn-icon">🚀</span> Subir Contenido
+                                                <span class="btn-icon">
+                                                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-2.05 9A22.02 22.02 0 0 1 16 13l-4 2z"/></svg>
+                                                </span> Subir Contenido
                                             </button>
-                                            <button type="button" id="btnClearCompletedUploads" class="btn-secondary btn-upload-sub" disabled title="Limpiar de la tabla los archivos finalizados correctamente">
-                                                <span class="btn-icon">🧹</span> Limpiar Finalizados OK
+                                            <button type="button" id="btnCancelar" class="btn-cancel-upload btn-upload-sub hidden">
+                                                <span class="btn-icon">
+                                                    <svg class="icon-svg" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>
+                                                </span> Cancelar subida
                                             </button>
-                                            <button type="button" id="btnClearAllUploads" class="btn-secondary btn-upload-sub" disabled title="Vaciar todos los archivos de la tabla">
-                                                <span class="btn-icon">🗑️</span> Vaciar Tabla
+                                            <button type="button" id="btnReintentar" class="btn-secondary btn-upload-sub" disabled>
+                                                <span class="btn-icon">
+                                                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                                </span> Reintentar
                                             </button>
                                             <small id="helpText" class="help-text">Rellena los campos obligatorios para habilitar la selección de archivos.</small>
+                                        </div>
+
+                                        <div class="upload-actions-maintenance">
+                                            <button type="button" id="btnClearCompletedUploads" class="btn-secondary btn-upload-sub" disabled title="Limpiar de la tabla los archivos finalizados correctamente">
+                                                <span class="btn-icon">
+                                                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m20 10-4 4"/><path d="m14 4-4 4"/><path d="m4 20 4-4"/><path d="M15 2 2 15l7 7L22 9z"/></svg>
+                                                </span> Limpiar Finalizados OK
+                                            </button>
+                                            <button type="button" id="btnClearAllUploads" class="btn-secondary btn-upload-sub" disabled title="Vaciar todos los archivos de la tabla">
+                                                <span class="btn-icon">
+                                                    <svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></svg>
+                                                </span> Vaciar Tabla
+                                            </button>
                                         </div>
                                     </div>
 
@@ -192,15 +233,21 @@
                             <div id="downloadViewControls" class="download-toolbar">
                                 <div class="download-toolbar-left">
                                     <button type="button" id="btnDescargarContenido" class="btn-download-primary" disabled>
-                                        <span class="btn-icon">⬇️</span>
+                                        <span class="btn-icon">
+                                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                                        </span>
                                         <span class="btn-text">Descargar contenido</span>
                                     </button>
                                     <button type="button" id="btnReintentarDescarga" class="btn-secondary btn-download-sub" disabled>
-                                        <span class="btn-icon">🔄</span>
+                                        <span class="btn-icon">
+                                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                        </span>
                                         <span class="btn-text">Reintentar</span>
                                     </button>
                                     <button type="button" id="btnCancelarDescarga" class="btn-cancel-upload btn-download-sub" disabled>
-                                        <span class="btn-icon">⏹️</span>
+                                        <span class="btn-icon">
+                                            <svg class="icon-svg" viewBox="0 0 24 24"><rect width="14" height="14" x="5" y="5" rx="2"/></svg>
+                                        </span>
                                         <span class="btn-text">Cancelar descarga</span>
                                     </button>
                                 </div>
@@ -407,7 +454,9 @@
                     <label for="inputBotToken" class="channel-add-label">Token del Bot (HTTP API Token):</label>
                     <div class="bot-input-row">
                         <input type="password" id="inputBotToken" class="channel-add-input" placeholder="Ej: 123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" autocomplete="off">
-                        <button type="button" id="btnToggleBotTokenVis" class="btn-toggle-vis" title="Mostrar/Ocultar Token">👁️</button>
+                        <button type="button" id="btnToggleBotTokenVis" class="btn-toggle-vis" title="Mostrar/Ocultar Token">
+                            <svg class="icon-svg" viewBox="0 0 24 24"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
                     </div>
                 </div>
 
@@ -766,7 +815,7 @@
             <div class="modal-channels-header">
                 <div class="modal-about-title-box">
                     <h3>🚀 Acerca de TeleVault</h3>
-                    <span class="about-version-badge">v2.2.0</span>
+                    <span class="about-version-badge">v2.3.0</span>
                 </div>
                 <button type="button" id="btnCloseAboutModal" class="btn-modal-close" title="Cerrar">✕</button>
             </div>
@@ -780,7 +829,7 @@
                 </div>
 
                 <div class="about-action-section">
-                    <a href="https://github.com/DavidEsquinasSanchez/UploadVideoTelegram" target="_blank" rel="noopener noreferrer" class="btn-about-repo" id="btnOpenGitHubRepo" title="Abrir repositorio oficial en GitHub">
+                    <a href="https://github.com/DavidEsquinasSanchez/TeleVault" target="_blank" rel="noopener noreferrer" class="btn-about-repo" id="btnOpenGitHubRepo" title="Abrir repositorio oficial en GitHub">
                         <span class="about-repo-icon">🐙</span>
                         <div class="about-repo-info">
                             <span class="about-repo-title">Repositorio Oficial en GitHub</span>
