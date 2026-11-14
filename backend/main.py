@@ -1458,6 +1458,7 @@ async def select_files():
                     "id": part_id,
                     "name": filename,
                     "size": part_size,
+                    "totalFileSize": size,
                     "isPart": True,
                     "partIndex": part_idx,
                     "totalParts": num_parts,
@@ -1475,6 +1476,7 @@ async def select_files():
                 "id": file_id,
                 "name": filename,
                 "size": size,
+                "totalFileSize": size,
                 "isPart": False,
                 "originalBase": name_no_ext,
             })
@@ -1740,11 +1742,12 @@ def _bot_api_create_topic(chat_id: int, name: str) -> dict:
 async def get_progress(key: str):
     entry = progress.get(key)
     if not entry:
-        return {"percent": 0, "status": "Pendiente...", "eta": None}
+        return {"percent": 0, "status": "Pendiente...", "eta": None, "speed": None}
     status = entry.get("status", "")
     tracker = trackers.get(key)
     eta = tracker.eta() if (tracker and status == "Subiendo a Telegram") else None
-    return {"percent": entry.get("percent", 0), "status": status, "eta": eta}
+    speed = tracker.speed() if (tracker and status == "Subiendo a Telegram") else None
+    return {"percent": entry.get("percent", 0), "status": status, "eta": eta, "speed": speed}
 
 
 @app.post("/api/upload")

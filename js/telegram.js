@@ -238,6 +238,21 @@ const TelegramAPI = {
         }
     },
 
+    // Formato de bytes a KB / MB / GB
+    formatBytes(bytes) {
+        if (!bytes || bytes <= 0) return '0 B';
+        if (bytes >= 1024 * 1024 * 1024) {
+            return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
+        }
+        if (bytes >= 1024 * 1024) {
+            return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+        if (bytes >= 1024) {
+            return `${(bytes / 1024).toFixed(0)} KB`;
+        }
+        return `${bytes} B`;
+    },
+
     // Formato de velocidad
     formatSpeed(bytesPerSec) {
         if (!bytesPerSec || bytesPerSec <= 0) return '';
@@ -277,11 +292,11 @@ const TelegramAPI = {
                     const resto = (data.eta === null || data.eta === undefined)
                         ? 'calculando...'
                         : `quedan ${TelegramAPI.formatDuration(data.eta)}`;
-                    onProgress(`Subiendo... ${data.percent}% · ${resto}`);
+                    onProgress(`Subiendo... ${data.percent}% · ${resto}`, data);
                 } else if (data.status.startsWith('Error:')) {
-                    onProgress('Fallo interno');
+                    onProgress('Fallo interno', data);
                 } else {
-                    onProgress(data.status);
+                    onProgress(data.status, data);
                 }
             } catch (e) {
                 // errores temporales del sondeo: se ignoran
