@@ -1316,6 +1316,56 @@ th {
     height: 12px;
 }
 
+/* Celda Destino de Subida (Canal / Tema) */
+.td-destination {
+    padding: 6px 12px;
+    vertical-align: middle;
+}
+
+.destination-cell-box {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.destination-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 3px 8px;
+    border-radius: 5px;
+    background: rgba(59, 130, 246, 0.12);
+    color: var(--text-main);
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    max-width: 100%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.dest-category-text {
+    color: var(--text-muted);
+    font-size: 0.76rem;
+}
+
+.dest-separator {
+    color: var(--accent);
+    font-weight: bold;
+    font-size: 0.8rem;
+}
+
+.dest-topic-text {
+    color: var(--accent);
+    font-weight: 600;
+}
+
+body.light-theme .destination-badge {
+    background: rgba(59, 130, 246, 0.08);
+    border-color: rgba(59, 130, 246, 0.2);
+}
+
 /* Celda Tamaño y Particionado */
 .td-size {
     white-space: nowrap;
