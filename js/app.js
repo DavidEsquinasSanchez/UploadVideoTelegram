@@ -159,6 +159,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     let selectedChannelToVerify = null;
 
     const DOWNLOAD_LOCKED_MSG = "Descarga en curso. Al finalizar se volverá a habilitar";
+    function getDownloadLockedMsg() {
+        return window.TeleVaultI18n
+            ? window.TeleVaultI18n.t('downloads.locked_msg', "Descarga en curso. Al finalizar se volverá a habilitar")
+            : "Descarga en curso. Al finalizar se volverá a habilitar";
+    }
     let isDownloading = false;
     let pendingTopicDownload = null;
     let downloadPollInterval = null;
@@ -175,15 +180,17 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.body.classList.add('light-theme');
             if (btnToggleTheme) {
                 btnToggleTheme.innerHTML = SVG.sun;
-                btnToggleTheme.title = 'Cambiar a modo oscuro';
-                btnToggleTheme.setAttribute('aria-label', 'Modo oscuro');
+                const title = window.TeleVaultI18n ? window.TeleVaultI18n.t('header.theme_dark', 'Cambiar a modo oscuro') : 'Cambiar a modo oscuro';
+                btnToggleTheme.title = title;
+                btnToggleTheme.setAttribute('aria-label', title);
             }
         } else {
             document.body.classList.remove('light-theme');
             if (btnToggleTheme) {
                 btnToggleTheme.innerHTML = SVG.moon;
-                btnToggleTheme.title = 'Cambiar a modo claro';
-                btnToggleTheme.setAttribute('aria-label', 'Modo claro');
+                const title = window.TeleVaultI18n ? window.TeleVaultI18n.t('header.theme_light', 'Cambiar a modo claro') : 'Cambiar a modo claro';
+                btnToggleTheme.title = title;
+                btnToggleTheme.setAttribute('aria-label', title);
             }
         }
     }
@@ -233,10 +240,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.addEventListener('televault:langchange', (e) => {
             const lang = e.detail && e.detail.lang;
             updateLangButtonText(lang);
+            renderCategoriaOptions();
+            renderSidebar();
             renderTable();
             renderDownloadsTable();
             updateBadges();
             validateForm();
+            checkUploadButtonState();
+            checkDownloadButtonState();
+            applyTheme(document.body.classList.contains('light-theme') ? 'light' : 'dark');
+            if (lastHealthState && lastHealthState.key) {
+                setConn(lastHealthState.state, lastHealthState.key, lastHealthState.fallback);
+            }
         });
     }
     initLanguage();
@@ -350,7 +365,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const isCollapsed = sidebar.classList.toggle('collapsed');
         if (btnToggleSidebar) {
             btnToggleSidebar.innerHTML = isCollapsed ? SVG.chevronRight : SVG.chevronLeft;
-            btnToggleSidebar.title = isCollapsed ? 'Descomprimir menú lateral' : 'Comprimir menú lateral';
+            const expTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.expand_title', 'Descomprimir menú lateral') : 'Descomprimir menú lateral';
+            const colTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.collapse_title', 'Comprimir menú lateral') : 'Comprimir menú lateral';
+            btnToggleSidebar.title = isCollapsed ? expTitle : colTitle;
         }
         if (!isCollapsed) {
             const savedWidth = parseInt(localStorage.getItem('teleVaultSidebarWidth'), 10) || 280;
@@ -468,10 +485,18 @@ document.addEventListener('DOMContentLoaded', async () => {
         compareTransformedTitles(a.transformedName, b.transformedName) || naturalCompare(a.originalName, b.originalName);
 
     // ---------------------------------------------------- Estado de conexión
-    function setConn(state, text) {
+    let lastHealthState = { state: 'unknown', key: 'header.bot_checking', fallback: 'Comprobando...' };
+    function setConn(state, keyOrText, fallback = null) {
         if (connDot) connDot.className = `conn-dot conn-${state}`;
         if (connText) {
             connText.className = `conn-badge conn-badge-${state}`;
+            let text = keyOrText;
+            if (fallback !== null) {
+                lastHealthState = { state, key: keyOrText, fallback };
+                text = window.TeleVaultI18n ? window.TeleVaultI18n.t(keyOrText, fallback) : fallback;
+            } else {
+                lastHealthState = { state, key: null, fallback: keyOrText };
+            }
             connText.textContent = text;
         }
     }
@@ -483,17 +508,19 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (headerBotUsername) headerBotUsername.textContent = `@${h.bot}`;
                 if (modalBotName) modalBotName.textContent = `@${h.bot}`;
             } else {
-                if (headerBotUsername) headerBotUsername.textContent = 'Configurar Bot';
+                if (headerBotUsername) {
+                    headerBotUsername.textContent = window.TeleVaultI18n ? window.TeleVaultI18n.t('header.bot_config', 'Configurar Bot') : 'Configurar Bot';
+                }
             }
 
             if (!h.configured) {
-                setConn('error', 'Sin configurar');
+                setConn('error', 'header.bot_not_configured', 'Sin configurar');
             } else if (!h.telegram) {
-                setConn('error', 'Desconectado');
+                setConn('error', 'header.bot_error', 'Desconectado');
             } else if (h.scanning) {
-                setConn('busy', 'Actualizando…');
+                setConn('busy', 'header.bot_checking', 'Actualizando…');
             } else {
-                setConn('ok', 'Conectado');
+                setConn('ok', 'header.bot_connected', 'Conectado');
             }
         } catch (error) {
             setConn('error', error.status === 401 ? 'Sesión caducada' : 'Sin backend');
@@ -585,11 +612,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     function renderSidebar() {
         sidebarGroups.innerHTML = '';
         if (!telegramData || telegramData.length === 0) {
+            const noChannelsText = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.no_channels', 'No hay canales configurados') : 'No hay canales configurados';
+            const addChannelText = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.add_channel_btn', '➕ Añadir canal') : '➕ Añadir canal';
             sidebarGroups.innerHTML = `
                 <div class="sidebar-empty">
                     <div class="empty-icon">📁</div>
-                    <div class="empty-text">No hay canales configurados</div>
-                    <button type="button" class="btn-sidebar-add-empty" id="btnSidebarEmptyAdd">➕ Añadir canal</button>
+                    <div class="empty-text">${noChannelsText}</div>
+                    <button type="button" class="btn-sidebar-add-empty" id="btnSidebarEmptyAdd">${addChannelText}</button>
                 </div>
             `;
             const btnEmpty = document.getElementById('btnSidebarEmptyAdd');
@@ -609,7 +638,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             titleDiv.tabIndex = 0;
             titleDiv.setAttribute('role', 'button');
             titleDiv.setAttribute('aria-expanded', String(isChannelExpanded));
-            titleDiv.title = 'Haz clic para comprimir o descomprimir este canal';
+            titleDiv.title = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.toggle_channel_title', 'Haz clic para comprimir o descomprimir este canal') : 'Haz clic para comprimir o descomprimir este canal';
 
             const toggleIcon = document.createElement('span');
             toggleIcon.className = 'folder-toggle-icon';
@@ -689,7 +718,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const btnDlTopic = document.createElement('button');
                         btnDlTopic.type = 'button';
                         btnDlTopic.className = 'btn-download-topic';
-                        btnDlTopic.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar todos los archivos';
+                        const dlAllTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.download_all_topic', 'Descargar todos los archivos') : 'Descargar todos los archivos';
+                        btnDlTopic.title = isDownloading ? getDownloadLockedMsg() : dlAllTitle;
                         btnDlTopic.disabled = isDownloading;
                         btnDlTopic.innerHTML = SVG.download;
                         btnDlTopic.addEventListener('click', (e) => {
@@ -720,7 +750,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const btnDlVideo = document.createElement('button');
                             btnDlVideo.type = 'button';
                             btnDlVideo.className = 'btn-download-video';
-                            btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
+                            const dlVideoTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.download_video', 'Descargar video') : 'Descargar video';
+                            btnDlVideo.title = isDownloading ? getDownloadLockedMsg() : dlVideoTitle;
                             btnDlVideo.disabled = isDownloading;
                             btnDlVideo.innerHTML = SVG.download;
                             btnDlVideo.addEventListener('click', async (e) => {
@@ -770,7 +801,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     const btnDlVideo = document.createElement('button');
                     btnDlVideo.type = 'button';
                     btnDlVideo.className = 'btn-download-video';
-                    btnDlVideo.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Descargar video';
+                    const dlVideoTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.download_video', 'Descargar video') : 'Descargar video';
+                    btnDlVideo.title = isDownloading ? getDownloadLockedMsg() : dlVideoTitle;
                     btnDlVideo.disabled = isDownloading;
                     btnDlVideo.innerHTML = SVG.download;
                     btnDlVideo.addEventListener('click', async (e) => {
@@ -790,21 +822,26 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // --------------------------------------------------------------- Formulario
     function renderCategoriaOptions() {
+        const currentVal = categoriaSelect.value;
+        const noChannelsText = window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.no_channels_option', '-- No hay canales configurados --') : '-- No hay canales configurados --';
+        const selectCatText = window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.select_category', 'Selecciona Categoria...') : 'Selecciona Categoria...';
         if (!telegramData || telegramData.length === 0) {
-            categoriaSelect.innerHTML = '<option value="">-- No hay canales configurados --</option>';
+            categoriaSelect.innerHTML = `<option value="">${noChannelsText}</option>`;
             return;
         }
-        categoriaSelect.innerHTML = '<option value="">Selecciona Categoria...</option>';
+        categoriaSelect.innerHTML = `<option value="">${selectCatText}</option>`;
         telegramData.forEach(grupo => {
             const option = document.createElement('option');
             option.value = grupo.id;
             option.textContent = grupo.nombre;
             categoriaSelect.appendChild(option);
         });
+        if (currentVal) categoriaSelect.value = currentVal;
     }
 
     function populateSubcategorias(grupo) {
-        subcategoriaSelect.innerHTML = '<option value="">Selecciona subcategoria</option>';
+        const selectSubText = window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.select_subcategory', 'Selecciona subcategoria') : 'Selecciona subcategoria';
+        subcategoriaSelect.innerHTML = `<option value="">${selectSubText}</option>`;
         if (!grupo) return;
         // Filtrar temas para no mostrar ni permitir elegir "General"
         const temasFiltrados = (grupo.temas || []).filter(
@@ -915,21 +952,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (helpText) helpText.style.display = selectionEnabled ? 'none' : '';
 
         if (isDownloading) {
+            const lockedMsg = getDownloadLockedMsg();
             btnSeleccionar.disabled = true;
-            btnSeleccionar.title = DOWNLOAD_LOCKED_MSG;
+            btnSeleccionar.title = lockedMsg;
             btnSubir.disabled = true;
-            btnSubir.title = DOWNLOAD_LOCKED_MSG;
+            btnSubir.title = lockedMsg;
             btnReintentar.disabled = true;
-            btnReintentar.title = DOWNLOAD_LOCKED_MSG;
+            btnReintentar.title = lockedMsg;
             btnCrearTema.disabled = !canCreateTopic;
-            btnCrearTema.title = canCreateTopic ? 'Crear Tema' : '';
+            btnCrearTema.title = canCreateTopic ? (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.create_topic_title', 'Crear nuevo tema en el canal') : 'Crear nuevo tema en el canal') : '';
             if (btnClearCompletedUploads) {
                 btnClearCompletedUploads.disabled = true;
-                btnClearCompletedUploads.title = DOWNLOAD_LOCKED_MSG;
+                btnClearCompletedUploads.title = lockedMsg;
             }
             if (btnClearAllUploads) {
                 btnClearAllUploads.disabled = true;
-                btnClearAllUploads.title = DOWNLOAD_LOCKED_MSG;
+                btnClearAllUploads.title = lockedMsg;
             }
             return;
         }
@@ -983,26 +1021,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     function checkUploadButtonState() {
         const hasCompleted = filesToUpload.some(f => f.status === 'Subido OK');
         const hasAnyFiles = filesToUpload.length > 0;
+        const lockedMsg = getDownloadLockedMsg();
 
         if (btnClearCompletedUploads) {
             btnClearCompletedUploads.disabled = uploading || isDownloading || !hasCompleted;
-            btnClearCompletedUploads.title = hasCompleted
-                ? 'Limpiar de la tabla los archivos finalizados correctamente'
-                : 'No hay archivos subidos correctamente para limpiar';
+            btnClearCompletedUploads.title = isDownloading
+                ? lockedMsg
+                : (hasCompleted
+                    ? (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.clear_completed_title', 'Limpiar de la tabla los archivos finalizados correctamente') : 'Limpiar de la tabla los archivos finalizados correctamente')
+                    : (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.no_completed_title', 'No hay archivos subidos correctamente para limpiar') : 'No hay archivos subidos correctamente para limpiar'));
         }
 
         if (btnClearAllUploads) {
             btnClearAllUploads.disabled = uploading || isDownloading || !hasAnyFiles;
-            btnClearAllUploads.title = hasAnyFiles
-                ? 'Vaciar todos los archivos de la tabla'
-                : 'La tabla está vacía';
+            btnClearAllUploads.title = isDownloading
+                ? lockedMsg
+                : (hasAnyFiles
+                    ? (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.clear_all_title', 'Vaciar todos los archivos de la tabla') : 'Vaciar todos los archivos de la tabla')
+                    : (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.empty_table_title', 'La tabla está vacía') : 'La tabla está vacía'));
         }
 
         if (isDownloading) {
             btnSubir.disabled = true;
-            btnSubir.title = DOWNLOAD_LOCKED_MSG;
+            btnSubir.title = lockedMsg;
             btnReintentar.disabled = true;
-            btnReintentar.title = DOWNLOAD_LOCKED_MSG;
+            btnReintentar.title = lockedMsg;
             return;
         }
         const hasFilesToUpload = filesToUpload.some(f => UPLOADABLE.includes(f.status));
@@ -1018,18 +1061,23 @@ document.addEventListener('DOMContentLoaded', async () => {
         isDownloading = locked;
 
         if (btnCancelarDescarga) {
-            btnCancelarDescarga.innerHTML = `<span class="btn-icon">${SVG.square}</span><span class="btn-text">Cancelar descarga</span>`;
+            const cancelText = window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.cancel_download', 'Cancelar descarga') : 'Cancelar descarga';
+            btnCancelarDescarga.innerHTML = `<span class="btn-icon">${SVG.square}</span><span class="btn-text">${cancelText}</span>`;
         }
 
         checkDownloadButtonState();
         checkUploadButtonState();
 
+        const lockedMsg = getDownloadLockedMsg();
+        const dlAllTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.download_all_topic', 'Descargar todos los archivos') : 'Descargar todos los archivos';
+        const dlVideoTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('sidebar.download_video', 'Descargar video') : 'Descargar video';
+
         document.querySelectorAll('.btn-download-topic, .btn-download-video').forEach(btn => {
             btn.disabled = locked;
             if (locked) {
-                btn.setAttribute('title', DOWNLOAD_LOCKED_MSG);
+                btn.setAttribute('title', lockedMsg);
             } else {
-                btn.setAttribute('title', btn.classList.contains('btn-download-topic') ? 'Descargar todos los archivos' : 'Descargar video');
+                btn.setAttribute('title', btn.classList.contains('btn-download-topic') ? dlAllTitle : dlVideoTitle);
             }
         });
 
@@ -1102,28 +1150,34 @@ document.addEventListener('DOMContentLoaded', async () => {
     function checkDownloadButtonState() {
         if (!btnDescargarContenido || !btnCancelarDescarga || !btnReintentarDescarga) return;
 
+        const lockedMsg = getDownloadLockedMsg();
+
         if (isDownloading) {
             btnCancelarDescarga.disabled = false;
-            btnCancelarDescarga.title = 'Cancelar descarga en curso';
+            btnCancelarDescarga.title = window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.cancel_active_title', 'Cancelar descarga en curso') : 'Cancelar descarga en curso';
 
             btnReintentarDescarga.disabled = true;
-            btnReintentarDescarga.title = DOWNLOAD_LOCKED_MSG;
+            btnReintentarDescarga.title = lockedMsg;
 
             btnDescargarContenido.disabled = true;
-            btnDescargarContenido.title = DOWNLOAD_LOCKED_MSG;
+            btnDescargarContenido.title = lockedMsg;
         } else {
             btnCancelarDescarga.disabled = true;
-            btnCancelarDescarga.title = 'No hay ninguna descarga en curso';
+            btnCancelarDescarga.title = window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.no_active_title', 'No hay ninguna descarga en curso') : 'No hay ninguna descarga en curso';
 
             // Reintentar: solo si al finalizar alguna descarga tuvo error
             const hasError = downloadsList.some(it => it.status === 'Error');
             btnReintentarDescarga.disabled = !hasError;
-            btnReintentarDescarga.title = hasError ? 'Reintentar descargas fallidas' : '';
+            btnReintentarDescarga.title = hasError
+                ? (window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.retry_failed_title', 'Reintentar descargas fallidas') : 'Reintentar descargas fallidas')
+                : '';
 
             // Descargar contenido: habilitado si hay al menos un elemento marcado
             const hasChecked = downloadsList.some(it => it.checked);
             btnDescargarContenido.disabled = !hasChecked;
-            btnDescargarContenido.title = hasChecked ? '' : 'Selecciona al menos un vídeo de la tabla para descargar';
+            btnDescargarContenido.title = hasChecked
+                ? ''
+                : (window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.select_at_least_one', 'Selecciona al menos un vídeo de la tabla para descargar') : 'Selecciona al menos un vídeo de la tabla para descargar');
         }
     }
 
@@ -1297,7 +1351,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             chk.dataset.id = item.id;
             chk.checked = Boolean(item.checked);
             chk.disabled = isDownloading;
-            chk.title = chk.checked ? 'Desmarcar este vídeo' : 'Marcar este vídeo para descargar';
+            chk.title = chk.checked
+                ? (window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.uncheck_video', 'Desmarcar este vídeo') : 'Desmarcar este vídeo')
+                : (window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.check_video', 'Marcar este vídeo para descargar') : 'Marcar este vídeo para descargar');
             chk.addEventListener('change', (e) => {
                 e.stopPropagation();
                 item.checked = chk.checked;
@@ -1318,8 +1374,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (item.parts > 1) {
                 const partBadge = document.createElement('span');
                 partBadge.className = 'download-part-badge';
-                partBadge.textContent = `${item.parts} partes`;
-                partBadge.title = `Archivo fraccionado en ${item.parts} partes binarias en Telegram`;
+                partBadge.textContent = window.TeleVaultI18n
+                    ? window.TeleVaultI18n.t('downloads.parts_count', `${item.parts} partes`, { count: item.parts })
+                    : `${item.parts} partes`;
+                partBadge.title = window.TeleVaultI18n
+                    ? window.TeleVaultI18n.t('downloads.parts_tooltip', `Archivo fraccionado en ${item.parts} partes binarias en Telegram`, { count: item.parts })
+                    : `Archivo fraccionado en ${item.parts} partes binarias en Telegram`;
                 tdName.appendChild(partBadge);
             }
 
@@ -1328,7 +1388,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const destSpan = document.createElement('span');
             destSpan.className = 'download-dest-text';
             destSpan.textContent = item.dest || '-';
-            destSpan.title = item.dest || 'Se asignará al descargar';
+            destSpan.title = item.dest || (window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.dest_unassigned', 'Se asignará al descargar') : 'Se asignará al descargar');
             tdDest.appendChild(destSpan);
 
             // 3. Estado / Progreso
@@ -1376,7 +1436,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 const statusText = document.createElement('span');
                 statusText.className = 'download-progress-status-text status-curso';
-                statusText.textContent = status;
+                const mergingText = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.merging', 'Uniendo partes binarias...') : status;
+                statusText.textContent = mergingText;
 
                 meta.appendChild(statusText);
 
@@ -1391,15 +1452,20 @@ document.addEventListener('DOMContentLoaded', async () => {
                 tdProgress.appendChild(container);
 
             } else if (status === 'Completado' || status === 'Finalizado OK') {
-                tdProgress.innerHTML = `<span class="status-ok">Finalizado OK</span>`;
+                const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.finished_ok', 'Finalizado OK') : 'Finalizado OK';
+                tdProgress.innerHTML = `<span class="status-ok">${text}</span>`;
             } else if (status === 'Pendiente') {
-                tdProgress.innerHTML = `<span class="status-pendiente">Pendiente</span>`;
+                const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.pending', 'Pendiente') : 'Pendiente';
+                tdProgress.innerHTML = `<span class="status-pendiente">${text}</span>`;
             } else if (status === 'En cola ⏳' || status === 'En cola') {
-                tdProgress.innerHTML = `<span class="status-pendiente">En cola</span>`;
+                const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.queued', 'En cola') : 'En cola';
+                tdProgress.innerHTML = `<span class="status-pendiente">${text}</span>`;
             } else if (status === 'Cancelado') {
-                tdProgress.innerHTML = `<span class="status-cancelado">Cancelado</span>`;
+                const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.cancelled', 'Cancelado') : 'Cancelado';
+                tdProgress.innerHTML = `<span class="status-cancelado">${text}</span>`;
             } else if (status === 'Error') {
-                tdProgress.innerHTML = `<span class="status-error" title="${item.error || 'Error en descarga'}">Error</span>`;
+                const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.error', 'Error') : 'Error';
+                tdProgress.innerHTML = `<span class="status-error" title="${item.error || 'Error'}">${text}</span>`;
             } else {
                 tdProgress.innerHTML = `<span>${status}</span>`;
             }
@@ -1414,7 +1480,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 btnDel.type = 'button';
                 btnDel.className = 'btn-delete-row-icon';
                 btnDel.innerHTML = SVG.trash;
-                btnDel.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Eliminar archivo de la lista';
+                btnDel.title = isDownloading ? getDownloadLockedMsg() : (window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.delete_row_tooltip', 'Eliminar archivo de la lista') : 'Eliminar archivo de la lista');
                 btnDel.disabled = isDownloading;
                 btnDel.addEventListener('click', () => {
                     if (isDownloading) return;
@@ -1532,7 +1598,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         btnCancelarDescarga.addEventListener('click', async () => {
             if (!isDownloading) return;
             btnCancelarDescarga.disabled = true;
-            btnCancelarDescarga.innerHTML = `<span class="btn-icon">${SVG.spinner}</span><span class="btn-text">Cancelando descarga...</span>`;
+            const cancellingText = window.TeleVaultI18n ? window.TeleVaultI18n.t('downloads.cancelling_download', 'Cancelando descarga...') : 'Cancelando descarga...';
+            btnCancelarDescarga.innerHTML = `<span class="btn-icon">${SVG.spinner}</span><span class="btn-text">${cancellingText}</span>`;
             addLog('Cancelando descarga en curso...', 'warning');
             try {
                 await window.TelegramAPI.cancelDownload();
@@ -2111,7 +2178,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const statusText = document.createElement('span');
             statusText.className = 'upload-progress-status-text status-curso';
             const pct = Math.min(100, Math.max(0, fileObj.percent || 0));
-            statusText.textContent = `Subiendo ${pct}%`;
+            statusText.textContent = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.uploading_pct', `Subiendo ${pct}%`, { pct }) : `Subiendo ${pct}%`;
 
             const speedText = document.createElement('span');
             speedText.className = 'upload-progress-speed-text';
@@ -2135,19 +2202,24 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         } else if (status === 'Subido OK') {
             cell.className = 'status-ok';
-            cell.innerHTML = '<span class="status-ok">Subido OK</span>';
+            const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.uploaded_ok', 'Subido OK') : 'Subido OK';
+            cell.innerHTML = `<span class="status-ok">${text}</span>`;
         } else if (status === 'Subido Previamente') {
             cell.className = 'status-previo';
-            cell.innerHTML = '<span class="status-previo">Subido Previamente</span>';
+            const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.previously_uploaded', 'Subido Previamente') : 'Subido Previamente';
+            cell.innerHTML = `<span class="status-previo">${text}</span>`;
         } else if (status === 'Pendiente Subir') {
             cell.className = 'status-pendiente';
-            cell.innerHTML = '<span class="status-pendiente">Pendiente Subir</span>';
+            const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.pending_upload', 'Pendiente Subir') : 'Pendiente Subir';
+            cell.innerHTML = `<span class="status-pendiente">${text}</span>`;
         } else if (status === 'Cancelado') {
             cell.className = 'status-cancelado';
-            cell.innerHTML = '<span class="status-cancelado">Cancelado</span>';
+            const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.cancelled', 'Cancelado') : 'Cancelado';
+            cell.innerHTML = `<span class="status-cancelado">${text}</span>`;
         } else if (status === 'Error en subida') {
             cell.className = 'status-error';
-            cell.innerHTML = '<span class="status-error" title="Error durante la subida">Error en subida</span>';
+            const text = window.TeleVaultI18n ? window.TeleVaultI18n.t('status.upload_error', 'Error en subida') : 'Error en subida';
+            cell.innerHTML = `<span class="status-error" title="${text}">${text}</span>`;
         } else {
             cell.className = getStatusClass(status);
             cell.textContent = status;
@@ -2202,7 +2274,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const btnEdit = document.createElement('button');
             btnEdit.type = 'button';
             btnEdit.className = 'btn-edit-transformed';
-            btnEdit.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Editar título transformado';
+            btnEdit.title = isDownloading ? getDownloadLockedMsg() : (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.edit_title_tooltip', 'Editar título transformado') : 'Editar título transformado');
             btnEdit.innerHTML = SVG.pencil;
             btnEdit.disabled = isWorkingStatus(fileObj.status) || isDownloading;
             btnEdit.addEventListener('click', (e) => {
@@ -2228,8 +2300,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const splitBadge = document.createElement('span');
                 splitBadge.className = 'file-split-badge';
                 const totalFormatted = window.TelegramAPI.formatBytes(fileObj.totalFileSize || fileObj.size);
-                splitBadge.title = `Archivo original de ${totalFormatted}. Dividido automáticamente en ${fileObj.totalParts} partes binarias para cumplir con el límite de Telegram (2 GB).`;
-                splitBadge.innerHTML = `<svg class="icon-svg size-badge-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg> Parte ${fileObj.partIndex}/${fileObj.totalParts}`;
+                splitBadge.title = window.TeleVaultI18n
+                    ? window.TeleVaultI18n.t('uploads.split_badge_tooltip', `Archivo original de ${totalFormatted}. Dividido automáticamente en ${fileObj.totalParts} partes binarias para cumplir con el límite de Telegram (2 GB).`, { size: totalFormatted, parts: fileObj.totalParts })
+                    : `Archivo original de ${totalFormatted}. Dividido automáticamente en ${fileObj.totalParts} partes binarias para cumplir con el límite de Telegram (2 GB).`;
+                const partLabel = window.TeleVaultI18n
+                    ? window.TeleVaultI18n.t('uploads.part_badge', `Parte ${fileObj.partIndex}/${fileObj.totalParts}`, { current: fileObj.partIndex, total: fileObj.totalParts })
+                    : `Parte ${fileObj.partIndex}/${fileObj.totalParts}`;
+                splitBadge.innerHTML = `<svg class="icon-svg size-badge-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg> ${partLabel}`;
                 sizeBox.appendChild(splitBadge);
             }
             tdSize.appendChild(sizeBox);
@@ -2247,7 +2324,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             btn.className = 'btn-delete-row-icon';
             btn.dataset.id = fileObj.id;
             btn.innerHTML = SVG.trash;
-            btn.title = isDownloading ? DOWNLOAD_LOCKED_MSG : 'Eliminar archivo de la lista';
+            btn.title = isDownloading ? getDownloadLockedMsg() : (window.TeleVaultI18n ? window.TeleVaultI18n.t('uploads.delete_row_tooltip', 'Eliminar archivo de la lista') : 'Eliminar archivo de la lista');
             btn.disabled = isWorkingStatus(fileObj.status) || isDownloading;
             btn.addEventListener('click', () => {
                 fileToDeleteId = fileObj.id;
@@ -2804,8 +2881,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const btnToggle = document.createElement('button');
                 btnToggle.type = 'button';
                 btnToggle.className = `btn-channel-toggle ${ch.visible ? 'active' : ''}`;
-                btnToggle.title = ch.visible ? 'Haz clic para ocultar de la aplicación' : 'Haz clic para mostrar en la aplicación';
-                btnToggle.innerHTML = ch.visible ? `${SVG.eye} <span>Visible</span>` : `${SVG.eyeOff} <span>Oculto</span>`;
+                const hideTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('modals.channels.hide_title', 'Haz clic para ocultar de la aplicación') : 'Haz clic para ocultar de la aplicación';
+                const showTitle = window.TeleVaultI18n ? window.TeleVaultI18n.t('modals.channels.show_title', 'Haz clic para mostrar en la aplicación') : 'Haz clic para mostrar en la aplicación';
+                const visibleLabel = window.TeleVaultI18n ? window.TeleVaultI18n.t('modals.channels.visible_label', 'Visible') : 'Visible';
+                const hiddenLabel = window.TeleVaultI18n ? window.TeleVaultI18n.t('modals.channels.hidden_label', 'Oculto') : 'Oculto';
+                btnToggle.title = ch.visible ? hideTitle : showTitle;
+                btnToggle.innerHTML = ch.visible ? `${SVG.eye} <span>${visibleLabel}</span>` : `${SVG.eyeOff} <span>${hiddenLabel}</span>`;
                 btnToggle.addEventListener('click', async () => {
                     btnToggle.disabled = true;
                     try {
@@ -2821,7 +2902,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const btnDelete = document.createElement('button');
                 btnDelete.type = 'button';
                 btnDelete.className = 'btn-channel-delete btn-delete-row-icon';
-                btnDelete.title = 'Eliminar este canal';
+                btnDelete.title = window.TeleVaultI18n ? window.TeleVaultI18n.t('modals.channels.delete_title', 'Eliminar este canal') : 'Eliminar este canal';
                 btnDelete.innerHTML = SVG.trash;
                 btnDelete.addEventListener('click', () => {
                     channelToDelete = ch;
