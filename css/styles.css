@@ -980,36 +980,41 @@ button:disabled {
     display: block;
 }
 
-.download-progress-cell {
+.download-progress-cell,
+.upload-progress-cell {
     display: flex;
     flex-direction: column;
     gap: 5px;
     min-width: 0;
 }
 
-.download-progress-meta {
+.download-progress-meta,
+.upload-progress-meta {
     display: flex;
     justify-content: space-between;
     align-items: center;
     font-size: 0.8rem;
 }
 
-.download-progress-status-text {
+.download-progress-status-text,
+.upload-progress-status-text {
     font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    max-width: 60%;
+    max-width: 65%;
 }
 
-.download-progress-speed-text {
+.download-progress-speed-text,
+.upload-progress-speed-text {
     font-size: 0.75rem;
     color: var(--text-muted);
     flex-shrink: 0;
     text-align: right;
 }
 
-.download-bar-track {
+.download-bar-track,
+.upload-bar-track {
     width: 100%;
     height: 7px;
     background-color: rgba(255, 255, 255, 0.08);
@@ -1018,7 +1023,8 @@ button:disabled {
     position: relative;
 }
 
-.download-bar-fill {
+.download-bar-fill,
+.upload-bar-fill {
     height: 100%;
     width: 0%;
     background: linear-gradient(90deg, #3b82f6, #60a5fa);
@@ -1026,15 +1032,18 @@ button:disabled {
     transition: width 0.25s ease-out;
 }
 
-.download-bar-fill.status-ok {
+.download-bar-fill.status-ok,
+.upload-bar-fill.status-ok {
     background: var(--success);
 }
 
-.download-bar-fill.status-error {
+.download-bar-fill.status-error,
+.upload-bar-fill.status-error {
     background: var(--error);
 }
 
-.download-bar-fill.status-merging {
+.download-bar-fill.status-merging,
+.upload-bar-fill.status-merging {
     background: linear-gradient(90deg, #8b5cf6, #c084fc);
     width: 100% !important;
     animation: bar-stripes 1.5s linear infinite;
@@ -1270,6 +1279,48 @@ th {
 
 .btn-save-transformed .icon-svg,
 .btn-cancel-transformed .icon-svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Celda Tamaño y Particionado */
+.td-size {
+    white-space: nowrap;
+    padding: 6px 14px;
+    vertical-align: middle;
+}
+
+.file-size-cell {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.file-size-value {
+    font-size: 0.86rem;
+    font-weight: 600;
+    color: var(--text-main);
+    font-variant-numeric: tabular-nums;
+}
+
+.file-split-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    background-color: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    cursor: help;
+    user-select: none;
+    letter-spacing: 0.2px;
+}
+
+.file-split-badge .size-badge-icon {
     width: 12px;
     height: 12px;
 }
@@ -3306,6 +3357,16 @@ body.light-theme .btn-edit-transformed:hover:not(:disabled) {
     color: #1d4ed8;
     background-color: #eff6ff;
     border-color: #bfdbfe;
+}
+
+body.light-theme .file-size-value {
+    color: #1e293b;
+}
+
+body.light-theme .file-split-badge {
+    background-color: #fef3c7;
+    color: #b45309;
+    border-color: #fde68a;
 }
 
 /* Log de Actividad */

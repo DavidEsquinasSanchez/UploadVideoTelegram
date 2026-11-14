@@ -500,7 +500,11 @@ def save_channels(channels: list) -> None:
 
 def _bot_api_token() -> str:
     cfg = load_app_config()
-    return cfg.get("bot_token") or BOT_TOKEN or ""
+    token = (cfg.get("bot_token") or BOT_TOKEN or "").strip()
+    parts = token.split(":")
+    if len(parts) > 2 and parts[0] == parts[1]:
+        token = ":".join(parts[1:])
+    return token
 
 
 def _bot_api_call(method: str, params: dict = None) -> dict:
@@ -1346,10 +1350,14 @@ async def set_bot_config(
     apiId: Optional[str] = Form(None),
     apiHash: Optional[str] = Form(None)
 ):
-    global client, bot_username, refresh_task
+    global client, bot_username, refresh_task, BOT_TOKEN
     token = botToken.strip()
+    parts = token.split(":")
+    if len(parts) > 2 and parts[0] == parts[1]:
+        token = ":".join(parts[1:])
     if not token:
         raise HTTPException(400, "Debes introducir el Token del Bot proporcionado por @BotFather")
+    BOT_TOKEN = token
 
     cfg = load_app_config()
     final_api_id = int(apiId.strip()) if (apiId and apiId.strip().isdigit()) else (int(cfg.get("api_id") or API_ID or 0))
@@ -1458,6 +1466,7 @@ async def select_files():
                     "id": part_id,
                     "name": filename,
                     "size": part_size,
+                    "totalFileSize": size,
                     "isPart": True,
                     "partIndex": part_idx,
                     "totalParts": num_parts,
@@ -1475,6 +1484,7 @@ async def select_files():
                 "id": file_id,
                 "name": filename,
                 "size": size,
+                "totalFileSize": size,
                 "isPart": False,
                 "originalBase": name_no_ext,
             })
@@ -1722,7 +1732,10 @@ async def create_topic(categoryId: str = Form(...), topicName: str = Form(...)):
 
 def _bot_api_create_topic(chat_id: int, name: str) -> dict:
     """Llamada HTTP bloqueante a la Bot API (se ejecuta en un hilo, no en el event loop)."""
-    url = f"https://api.telegram.org/bot{BOT_TOKEN}/createForumTopic"
+    token = _bot_api_token()
+    if not token:
+        return {"ok": False, "description": "Token de bot no configurado"}
+    url = f"https://api.telegram.org/bot{token}/createForumTopic"
     req = urllib.request.Request(
         url, data=json.dumps({"chat_id": chat_id, "name": name}).encode("utf-8"),
         headers={"Content-Type": "application/json"}, method="POST")
@@ -1740,11 +1753,12 @@ def _bot_api_create_topic(chat_id: int, name: str) -> dict:
 async def get_progress(key: str):
     entry = progress.get(key)
     if not entry:
-        return {"percent": 0, "status": "Pendiente...", "eta": None}
+        return {"percent": 0, "status": "Pendiente...", "eta": None, "speed": None}
     status = entry.get("status", "")
     tracker = trackers.get(key)
     eta = tracker.eta() if (tracker and status == "Subiendo a Telegram") else None
-    return {"percent": entry.get("percent", 0), "status": status, "eta": eta}
+    speed = tracker.speed() if (tracker and status == "Subiendo a Telegram") else None
+    return {"percent": entry.get("percent", 0), "status": status, "eta": eta, "speed": speed}
 
 
 @app.post("/api/upload")

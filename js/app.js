@@ -78,6 +78,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const filesTableBody = document.getElementById('filesTableBody');
     const thOriginal = document.getElementById('thOriginal');
     const thTransformado = document.getElementById('thTransformado');
+    const thSize = document.getElementById('thSize');
 
     const logSection = document.getElementById('logSection');
     const logToggleTitle = document.getElementById('logToggleTitle');
@@ -1764,6 +1765,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             filesToUpload.push({
                 id: item.id,
                 size: item.size || 0,
+                totalFileSize: item.totalFileSize || item.size || 0,
                 originalName: displayName,
                 transformedName: transformedName,
                 status: status,
@@ -1772,6 +1774,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 totalParts: item.totalParts,
                 rawItem: item,
                 isCustom: false,
+                percent: 0,
+                eta: null,
+                speed: null
             });
 
             if (item.isPart) {
@@ -1830,6 +1835,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         handleSort('transformedName');
     });
 
+    if (thSize) {
+        thSize.addEventListener('click', (e) => {
+            if (e.target.closest('.resizer')) return;
+            handleSort('size');
+        });
+    }
+
     function handleSort(column) {
         if (currentSortColumn === column) {
             currentSortAsc = !currentSortAsc;
@@ -1841,16 +1853,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     function updateSortIcons() {
-        thOriginal.querySelector('.sort-icon').textContent = '';
-        thTransformado.querySelector('.sort-icon').textContent = '';
-        if (currentSortColumn === 'originalName') {
+        if (thOriginal) thOriginal.querySelector('.sort-icon').textContent = '';
+        if (thTransformado) thTransformado.querySelector('.sort-icon').textContent = '';
+        if (thSize) thSize.querySelector('.sort-icon').textContent = '';
+        if (currentSortColumn === 'originalName' && thOriginal) {
             thOriginal.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
-        } else if (currentSortColumn === 'transformedName') {
+        } else if (currentSortColumn === 'transformedName' && thTransformado) {
             thTransformado.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
+        } else if (currentSortColumn === 'size' && thSize) {
+            thSize.querySelector('.sort-icon').textContent = currentSortAsc ? '▲' : '▼';
         }
     }
 
     function sortFiles() {
+        if (currentSortColumn === 'size') {
+            return [...filesToUpload].sort((a, b) => {
+                const diff = (a.size || 0) - (b.size || 0);
+                return currentSortAsc ? diff : -diff;
+            });
+        }
         if (!currentSortColumn || currentSortColumn === 'transformedName') {
             return [...filesToUpload].sort((a, b) => {
                 const cmp = compareForUpload(a, b);
@@ -1942,6 +1963,68 @@ document.addEventListener('DOMContentLoaded', async () => {
         input.select();
     }
 
+    // Render de celda de estado con soporte para barra de progreso en vivo
+    function renderStatusCell(cell, fileObj) {
+        if (!cell || !fileObj) return;
+        const status = fileObj.status || 'Pendiente Subir';
+
+        if (status === 'Subiendo a Telegram' || (isWorkingStatus(status) && (fileObj.percent > 0 || status.includes('%')))) {
+            cell.className = 'status-curso';
+            cell.innerHTML = '';
+
+            const container = document.createElement('div');
+            container.className = 'upload-progress-cell';
+
+            const meta = document.createElement('div');
+            meta.className = 'upload-progress-meta';
+
+            const statusText = document.createElement('span');
+            statusText.className = 'upload-progress-status-text status-curso';
+            const pct = Math.min(100, Math.max(0, fileObj.percent || 0));
+            statusText.textContent = `Subiendo ${pct}%`;
+
+            const speedText = document.createElement('span');
+            speedText.className = 'upload-progress-speed-text';
+            const speedFormatted = fileObj.speed ? window.TelegramAPI.formatSpeed(fileObj.speed) : '';
+            const etaFormatted = (fileObj.eta !== null && fileObj.eta !== undefined)
+                ? `ETA: ${window.TelegramAPI.formatDuration(fileObj.eta)}`
+                : '';
+            speedText.textContent = [speedFormatted, etaFormatted].filter(Boolean).join(' · ');
+
+            meta.append(statusText, speedText);
+
+            const track = document.createElement('div');
+            track.className = 'upload-bar-track';
+            const fill = document.createElement('div');
+            fill.className = 'upload-bar-fill';
+            fill.style.width = `${pct}%`;
+            track.appendChild(fill);
+
+            container.append(meta, track);
+            cell.appendChild(container);
+
+        } else if (status === 'Subido OK') {
+            cell.className = 'status-ok';
+            cell.innerHTML = '<span class="status-ok">Subido OK</span>';
+        } else if (status === 'Subido Previamente') {
+            cell.className = 'status-previo';
+            cell.innerHTML = '<span class="status-previo">Subido Previamente</span>';
+        } else if (status === 'Pendiente Subir') {
+            cell.className = 'status-pendiente';
+            cell.innerHTML = '<span class="status-pendiente">Pendiente Subir</span>';
+        } else if (status === 'Cancelado') {
+            cell.className = 'status-cancelado';
+            cell.innerHTML = '<span class="status-cancelado">Cancelado</span>';
+        } else if (status === 'Error en subida') {
+            cell.className = 'status-error';
+            cell.innerHTML = '<span class="status-error" title="Error durante la subida">Error en subida</span>';
+        } else {
+            cell.className = getStatusClass(status);
+            cell.textContent = status;
+            cell.title = status;
+        }
+    }
+
     // Render de filas
     function renderTable() {
         filesTableBody.innerHTML = '';
@@ -1949,7 +2032,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!filesToUpload || filesToUpload.length === 0) {
             filesTableBody.innerHTML = `
                 <tr class="empty-files-row">
-                    <td colspan="4" class="empty-table-cell">
+                    <td colspan="5" class="empty-table-cell">
                         <div class="empty-state-box">
                             <svg class="icon-svg empty-state-icon" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                             <div class="empty-state-text">No hay vídeos seleccionados para subir</div>
@@ -1998,14 +2081,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             cellWrapper.append(nameSpan, btnEdit);
             tdTransformed.appendChild(cellWrapper);
 
-            // 3. Estado
+            // 3. Tamaño / Info de Partición
+            const tdSize = document.createElement('td');
+            tdSize.className = 'td-size';
+            const sizeBox = document.createElement('div');
+            sizeBox.className = 'file-size-cell';
+
+            const sizeText = document.createElement('span');
+            sizeText.className = 'file-size-value';
+            sizeText.textContent = window.TelegramAPI.formatBytes(fileObj.size);
+            sizeBox.appendChild(sizeText);
+
+            if (fileObj.isPart) {
+                const splitBadge = document.createElement('span');
+                splitBadge.className = 'file-split-badge';
+                const totalFormatted = window.TelegramAPI.formatBytes(fileObj.totalFileSize || fileObj.size);
+                splitBadge.title = `Archivo original de ${totalFormatted}. Dividido automáticamente en ${fileObj.totalParts} partes binarias para cumplir con el límite de Telegram (2 GB).`;
+                splitBadge.innerHTML = `<svg class="icon-svg size-badge-icon" viewBox="0 0 24 24"><path d="m16 3 4 4-4 4"/><path d="M20 7H4"/><path d="m8 21-4-4 4-4"/><path d="M4 17h16"/></svg> Parte ${fileObj.partIndex}/${fileObj.totalParts}`;
+                sizeBox.appendChild(splitBadge);
+            }
+            tdSize.appendChild(sizeBox);
+
+            // 4. Estado con barra de progreso reactiva
             const tdStatus = document.createElement('td');
             tdStatus.id = `status-${fileObj.id}`;
-            tdStatus.className = getStatusClass(fileObj.status);
-            tdStatus.textContent = fileObj.status;
-            tdStatus.title = fileObj.status;
+            renderStatusCell(tdStatus, fileObj);
 
-            // 4. Eliminar
+            // 5. Eliminar
             const tdDelete = document.createElement('td');
             tdDelete.className = 'td-delete';
             const btn = document.createElement('button');
@@ -2021,7 +2123,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
             tdDelete.appendChild(btn);
 
-            tr.append(tdOriginal, tdTransformed, tdStatus, tdDelete);
+            tr.append(tdOriginal, tdTransformed, tdSize, tdStatus, tdDelete);
             filesTableBody.appendChild(tr);
         });
         updateSortIcons();
@@ -2029,16 +2131,21 @@ document.addEventListener('DOMContentLoaded', async () => {
         checkUploadButtonState();
     }
 
-    function updateRowStatus(id, newStatus) {
+    function updateRowStatus(id, newStatus, meta = null) {
         const fileObj = filesToUpload.find(f => f.id === id);
         if (!fileObj) return;
         fileObj.status = newStatus;
+        if (meta) {
+            if (meta.percent !== undefined) fileObj.percent = meta.percent;
+            if (meta.eta !== undefined) fileObj.eta = meta.eta;
+            if (meta.speed !== undefined) fileObj.speed = meta.speed;
+        } else if (newStatus === 'Subido OK') {
+            fileObj.percent = 100;
+        }
 
         const statusCell = document.getElementById(`status-${id}`);
         if (statusCell) {
-            statusCell.textContent = newStatus;
-            statusCell.title = newStatus;
-            statusCell.className = getStatusClass(newStatus);
+            renderStatusCell(statusCell, fileObj);
         }
         const deleteBtn = filesTableBody.querySelector(`button[data-id="${id}"]`);
         if (deleteBtn) deleteBtn.disabled = isWorkingStatus(newStatus);
@@ -2181,7 +2288,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             await window.TelegramAPI.uploadFile(
                 fileObj, categoryId, topicId,
-                (statusText) => { if (!cancelRequested) updateRowStatus(fileObj.id, statusText); }
+                (statusText, meta) => { if (!cancelRequested) updateRowStatus(fileObj.id, statusText, meta); }
             );
             const duration = window.TelegramAPI.formatDuration((performance.now() - startedAt) / 1000);
             updateRowStatus(fileObj.id, 'Subido OK');
