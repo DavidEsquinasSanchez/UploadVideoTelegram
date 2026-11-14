@@ -38,6 +38,7 @@ Permite a cualquier usuario transformar Telegram en su propia nube personal orga
   * Organización automatizada por **Series**, **Temporadas** y **Películas**.
   * Renombrado estandarizado y asignación de temas antes de la subida.
   * Selector múltiple de archivos con vista previa en tabla interactiva.
+  * **Subidas 100% silenciosas (`silent=True`):** Envío automático sin alertas sonoras ni vibraciones para evitar avisos continuos durante subidas masivas de capítulos y partes.
 
 * 💬 **Integración Nativa con Foros y Temas de Telegram:**
   * Detección y creación automática de temas (*topics*) dentro de supergrupos de Telegram.
